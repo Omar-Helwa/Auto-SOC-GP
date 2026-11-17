@@ -1,0 +1,78 @@
+{
+  "label_set_id": "labels-002",
+  "task_id": "task-002",
+  "evaluation_set_id": "eval-002",
+  "evaluation_set_version": "1.0",
+  "labels": [
+    {
+      "event_id": "E02-01",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "label-evidence-E02-01",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-02",
+      "label": "attack",
+      "attack_id": "attack-02",
+      "evidence_ref": "label-evidence-E02-02",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-03",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "label-evidence-E02-03",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-04",
+      "label": "attack",
+      "attack_id": "attack-02",
+      "evidence_ref": "label-evidence-E02-04",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-05",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "label-evidence-E02-05",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-06",
+      "label": "attack",
+      "attack_id": "attack-02",
+      "evidence_ref": "label-evidence-E02-06",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-07",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "label-evidence-E02-07",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-08",
+      "label": "attack",
+      "attack_id": "attack-02",
+      "evidence_ref": "label-evidence-E02-08",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-09",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "label-evidence-E02-09",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E02-10",
+      "label": "attack",
+      "attack_id": "attack-02",
+      "evidence_ref": "label-evidence-E02-10",
+      "review_status": "approved"
+    }
+  ]
+}
