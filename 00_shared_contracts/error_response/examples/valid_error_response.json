@@ -1,0 +1,14 @@
+{
+  "contract_version": "0.1.0",
+  "error_id": "err-7c9a1b20-0001",
+  "task_id": "round-2026-11-17-001",
+  "category": "missing_information",
+  "source_component": "02_red_role",
+  "message": "Red input is missing detection.logic_summary; cannot build red context.",
+  "details": {
+    "missing_fields": ["detection.logic_summary"],
+    "failing_contract": "red_input@0.1.0"
+  },
+  "retryable": false,
+  "timestamp": "2026-11-17T09:14:03Z"
+}

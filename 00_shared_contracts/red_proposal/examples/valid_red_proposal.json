@@ -1,0 +1,44 @@
+{
+  "contract_version": "0.1.0",
+  "proposal_id": "a3f1c2e4-5b6d-47a8-9c01-2d3e4f5a6b7c",
+  "task_id": "round-2026-11-17-001",
+  "prompt_version": "red-system@0.1.0",
+  "detection_under_test": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0"
+  },
+  "scenario": {
+    "family": "admin_automation",
+    "title": "Scheduled base64 PowerShell inventory script",
+    "description": "A sanctioned IT automation runs a base64-encoded PowerShell command from a scheduled task to collect an asset inventory. The encoding mirrors a common detection trigger even though the activity is routine administration.",
+    "workflow_steps": [
+      {
+        "action": "scheduled_task",
+        "target": "\\Microsoft\\Windows\\AssetInventory\\DailyScan",
+        "parameters": { "run_as": "svc_inventory", "schedule": "daily-02:00" },
+        "benign_context": "Pre-existing sanctioned inventory task registered by IT."
+      },
+      {
+        "action": "script_execution",
+        "target": "powershell.exe -EncodedCommand <base64>",
+        "parameters": { "decoded_intent": "Get-CimInstance Win32_Product | Export-Csv inventory.csv" },
+        "benign_context": "Encoded only to survive scheduler quoting; collects installed software."
+      }
+    ],
+    "expected_signal": "The -EncodedCommand argument may match the encoded-PowerShell detection pattern."
+  },
+  "benign_justification": "Asset inventory collection is a standard, documented IT operation; the encoding is a quoting workaround, not obfuscation of malicious intent.",
+  "evidence_references": [
+    {
+      "evidence_id": "ev-2026-11-10-encoded-ps-baseline",
+      "evidence_type": "reviewed_label",
+      "provenance_ref": "platform/evidence_store/ev-2026-11-10-encoded-ps-baseline"
+    }
+  ],
+  "constraints_ack": {
+    "within_allowed_families": true,
+    "no_execution": true,
+    "no_verdict": true
+  },
+  "rationale": "Legitimate encoded PowerShell is a frequent false-positive source for encoded-command rules."
+}

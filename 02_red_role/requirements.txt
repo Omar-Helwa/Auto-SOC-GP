@@ -1,0 +1,3 @@
+# Red role (02_red_role) runtime + dev dependencies.
+jsonschema>=4.21
+pytest>=8.0
