@@ -1,0 +1,22 @@
+{
+  "_why_invalid": "Three violations: scenario.family is out-of-enum, workflow_steps is empty (<1), and a forbidden 'results' field claims an execution outcome (red must never report results).",
+  "contract_version": "0.1.0",
+  "proposal_id": "bad-0001",
+  "task_id": "round-2026-11-17-001",
+  "prompt_version": "red-system@0.1.0",
+  "detection_under_test": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0"
+  },
+  "scenario": {
+    "family": "arbitrary_red_team_ops",
+    "title": "Empty bounded workflow",
+    "description": "This scenario declares no steps and uses a family outside the allowed set.",
+    "workflow_steps": []
+  },
+  "benign_justification": "n/a",
+  "results": {
+    "splunk_matches": 42,
+    "verdict": "pass"
+  }
+}

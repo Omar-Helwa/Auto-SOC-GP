@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/red_proposal/0.1.0",
+  "title": "RedProposal",
+  "description": "One bounded benign workflow variation proposed by the Red role. A proposal ONLY: it must never contain execution results, Splunk matches, labels, or an acceptance verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "proposal_id",
+    "task_id",
+    "prompt_version",
+    "detection_under_test",
+    "scenario",
+    "benign_justification"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of this red_proposal contract.",
+      "const": "0.1.0"
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique id for this proposal (UUID recommended)."
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Round/task identifier this proposal answers. Mirrors the red input task_id."
+    },
+    "prompt_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Version of the red prompt template used to generate this proposal."
+    },
+    "detection_under_test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["detection_id", "rule_version"],
+      "properties": {
+        "detection_id": { "type": "string", "minLength": 1 },
+        "rule_version": { "type": "string", "minLength": 1 }
+      },
+      "description": "The detection this benign scenario is designed to stress."
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "title", "description", "workflow_steps"],
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": [
+            "admin_automation",
+            "software_deployment",
+            "it_maintenance",
+            "developer_activity",
+            "power_user_tooling",
+            "backup_and_recovery",
+            "security_tooling"
+          ],
+          "description": "Permitted benign scenario family. Out-of-enum values are rejected locally."
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "workflow_steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "description": "Bounded sequence of benign actions. 1..10 steps enforce the 'bounded' constraint.",
+          "items": { "$ref": "#/$defs/workflow_step" }
+        },
+        "expected_signal": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Hypothesis about what in the detection this may trip. A hypothesis only, NOT a claim of results."
+        }
+      }
+    },
+    "benign_justification": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "Why this workflow is legitimate/benign business activity."
+    },
+    "evidence_references": {
+      "type": "array",
+      "description": "Optional references to prior telemetry_evidence that motivated this proposal. References ONLY — red never embeds raw evidence.",
+      "items": { "$ref": "#/$defs/evidence_reference" }
+    },
+    "constraints_ack": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Explicit acknowledgement that red stayed within bounds. Red exposes no execution/judging capability.",
+      "required": ["within_allowed_families", "no_execution", "no_verdict"],
+      "properties": {
+        "within_allowed_families": { "type": "boolean", "const": true },
+        "no_execution": { "type": "boolean", "const": true },
+        "no_verdict": { "type": "boolean", "const": true }
+      }
+    },
+    "rationale": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Optional short reasoning for why this variation is a useful false-positive probe."
+    }
+  },
+  "$defs": {
+    "workflow_step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "target", "benign_context"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "process_execution",
+            "file_operation",
+            "network_connection",
+            "registry_operation",
+            "scheduled_task",
+            "script_execution",
+            "account_operation",
+            "service_operation"
+          ]
+        },
+        "target": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "parameters": { "type": "object" },
+        "benign_context": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "evidence_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "evidence_type"],
+      "properties": {
+        "evidence_id": { "type": "string", "minLength": 1 },
+        "evidence_type": {
+          "type": "string",
+          "enum": ["splunk_result", "reviewed_label", "telemetry"]
+        },
+        "provenance_ref": { "type": "string" }
+      },
+      "description": "Subset of the platform-owned telemetry_evidence contract that red is permitted to cite. See 00_shared_contracts/telemetry_evidence/."
+    }
+  }
+}

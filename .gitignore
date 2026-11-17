@@ -1,2 +1,16 @@
 /AutoSOC_Architecture_1.docx
 /AutoSOC_Architecture_1.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local dev scratch
+**/dev/temp_outputs/*
+!**/dev/temp_outputs/.gitkeep
+
+# Personal planning notes (not shared)
+02_red_role/TASKS.md

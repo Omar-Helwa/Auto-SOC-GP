@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/error_response/0.1.0",
+  "title": "ErrorResponse",
+  "description": "Consistent error envelope returned across component boundaries (validation, dependency, timeout, missing information, internal). Any component may return this instead of its success contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "error_id",
+    "category",
+    "source_component",
+    "message",
+    "retryable"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "const": "0.1.0"
+    },
+    "error_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique id for this error occurrence (UUID recommended)."
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Round/task id when the error occurred inside a round. Omitted if not yet known."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "validation",
+        "missing_information",
+        "dependency",
+        "timeout",
+        "internal"
+      ],
+      "description": "Machine-readable failure class consumers branch on."
+    },
+    "source_component": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Component that produced the error, e.g. '02_red_role'."
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable summary. Must not leak secrets or raw model prompts."
+    },
+    "details": {
+      "type": "object",
+      "description": "Optional machine-readable specifics (e.g. failing field path, dependency name)."
+    },
+    "retryable": {
+      "type": "boolean",
+      "description": "Whether the orchestrator may retry the same request. timeout/dependency are typically true; validation/missing_information are false."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 time the error was produced."
+    }
+  }
+}

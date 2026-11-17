@@ -1,0 +1,5 @@
+{
+  "_why_invalid": "evidence_id is missing (required) and evidence_type 'model_claim' is out-of-enum — model claims are explicitly not evidence.",
+  "evidence_type": "model_claim",
+  "provenance_ref": "red/role_context/assumed"
+}
