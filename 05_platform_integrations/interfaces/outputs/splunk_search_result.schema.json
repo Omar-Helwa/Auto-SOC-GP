@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Splunk execution result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["execution", "search_result"],
+  "properties": {
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_id",
+        "task_id",
+        "task_version",
+        "operation_id",
+        "approval_id",
+        "status",
+        "started_at",
+        "completed_at",
+        "event_count",
+        "truncated"
+      ],
+      "properties": {
+        "execution_id": { "type": "string", "minLength": 1 },
+        "task_id": { "type": "string", "minLength": 1 },
+        "task_version": { "type": "string", "minLength": 1 },
+        "operation_id": { "type": "string", "minLength": 1 },
+        "approval_id": { "type": "string", "minLength": 1 },
+        "status": { "const": "succeeded" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "event_count": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "search_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "truncated"],
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": { "$ref": "telemetry_evidence.schema.json" }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    }
+  }
+}

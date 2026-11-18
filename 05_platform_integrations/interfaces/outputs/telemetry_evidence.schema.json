@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Normalized telemetry evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "timestamp", "fields"],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "host": { "type": "string" },
+    "source": { "type": "string" },
+    "sourcetype": { "type": "string" },
+    "raw": { "type": "string" },
+    "fields": { "type": "object" }
+  }
+}

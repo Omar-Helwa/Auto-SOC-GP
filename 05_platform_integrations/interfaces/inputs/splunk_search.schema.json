@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Approved Splunk search request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "task_version", "operation_id", "approval_id", "spl"],
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "task_version": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "operation_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "approval_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Reference checked by the trusted operation authorizer before Splunk access."
+    },
+    "spl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "SPL search expression evaluated by the configured Splunk instance."
+    },
+    "earliest_time": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "default": "-15m"
+    },
+    "latest_time": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "default": "now"
+    }
+  }
+}
