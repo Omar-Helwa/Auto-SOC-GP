@@ -1,0 +1,18 @@
+{
+  "contract_version": "0.1.0",
+  "task_id": "fixture-round-0001",
+  "detection": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0",
+    "description": "Flags powershell.exe invoked with -EncodedCommand / -enc.",
+    "logic_summary": "Alerts when powershell.exe runs with -EncodedCommand whose decoded length exceeds 64 bytes."
+  },
+  "benign_constraints": {
+    "allowed_scenario_families": ["admin_automation", "it_maintenance", "developer_activity"],
+    "max_workflow_steps": 5,
+    "allowed_actions": ["scheduled_task", "script_execution", "process_execution", "file_operation"],
+    "forbidden_notes": ["No real malware or live C2.", "Lab host only."]
+  },
+  "prompt_version": "red-system@0.1.0",
+  "output_contract_version": "0.1.0"
+}

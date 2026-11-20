@@ -1,0 +1,16 @@
+{
+  "_why_invalid": "detection.logic_summary is missing (required) -> red should return error_response category missing_information.",
+  "contract_version": "0.1.0",
+  "task_id": "fixture-round-0002",
+  "detection": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0"
+  },
+  "benign_constraints": {
+    "allowed_scenario_families": ["admin_automation"],
+    "max_workflow_steps": 5,
+    "allowed_actions": ["script_execution"]
+  },
+  "prompt_version": "red-system@0.1.0",
+  "output_contract_version": "0.1.0"
+}
