@@ -1,0 +1,4 @@
+# Blue role (03_blue_role) runtime + dev dependencies.
+jsonschema>=4.21
+PyYAML>=6.0
+pytest>=8.0
