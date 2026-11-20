@@ -1,0 +1,64 @@
+{
+  "contract_version": "0.1.0",
+  "proposal_id": "6d1b0c9e-2f4a-4e7b-9a35-0c8e5f7d2a11",
+  "task_id": "round-2026-11-17-001",
+  "prompt_version": "blue-system@0.1.0",
+  "detection_under_test": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0"
+  },
+  "edits": [
+    {
+      "operation": "add_exclusion",
+      "conditions": [
+        {
+          "field": "User",
+          "modifier": "equals",
+          "values": [
+            "CORP\\svc_inventory"
+          ]
+        },
+        {
+          "field": "ParentImage",
+          "modifier": "endswith",
+          "values": [
+            "\\svchost.exe"
+          ]
+        },
+        {
+          "field": "ParentCommandLine",
+          "modifier": "contains",
+          "values": [
+            "-s Schedule"
+          ]
+        }
+      ],
+      "reason": "Only the sanctioned inventory service account, started by the Task Scheduler service."
+    }
+  ],
+  "addressed_false_positives": [
+    "ev-2026-11-10-fp-inventory-01"
+  ],
+  "justification": "The false positive is the scheduled inventory task. The exclusion needs the service account AND the scheduler parent, so the macro and cmd attacks (other users, other parents) still match.",
+  "expected_effect": "Removes the inventory false positive; both must-detect cases should still match.",
+  "reference_rules": [
+    {
+      "rule_id": "ref-encoded-powershell-cmdline",
+      "title": "Suspicious Encoded PowerShell Command Line",
+      "source": "sigma_corpus"
+    }
+  ],
+  "evidence_references": [
+    {
+      "evidence_id": "ev-2026-11-10-fp-inventory-01",
+      "evidence_type": "reviewed_label"
+    }
+  ],
+  "constraints_ack": {
+    "within_allowed_edits": true,
+    "no_execution": true,
+    "no_verdict": true,
+    "no_judge_criteria_change": true
+  },
+  "rationale": "Prior edit b-0001 was rejected for relying on CommandLine alone; this one anchors on User and ParentImage."
+}
