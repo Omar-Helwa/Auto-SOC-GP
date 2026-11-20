@@ -23,9 +23,22 @@ REPO_ROOT = COMPONENT_ROOT.parent
 if str(COMPONENT_ROOT) not in sys.path:
     sys.path.insert(0, str(COMPONENT_ROOT))
 
+# Make the dev mocks importable as flat modules (import mock_gateway / mock_telemetry).
+for _mock_dir in (
+    COMPONENT_ROOT / "dev" / "mocks" / "model_gateway",
+    COMPONENT_ROOT / "dev" / "mocks" / "telemetry",
+):
+    if str(_mock_dir) not in sys.path:
+        sys.path.insert(0, str(_mock_dir))
+
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _fixture(name: str) -> dict:
+    data = _load_json(COMPONENT_ROOT / "dev" / "fixtures" / name)
+    return _strip_helper_keys(data)
 
 
 def _strip_helper_keys(data):
@@ -59,3 +72,9 @@ def example():
         return _strip_helper_keys(_load_json(folder / fname))
 
     return _get
+
+
+@pytest.fixture
+def fixture():
+    """Return a loader for dev/fixtures: fixture('valid_task.json') -> dict."""
+    return _fixture

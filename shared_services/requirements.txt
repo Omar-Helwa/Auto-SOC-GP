@@ -1,0 +1,4 @@
+# AutoSOC shared services (datastore + controller) dependencies.
+pymongo>=4.6
+jsonschema>=4.21
+pytest>=8.0
