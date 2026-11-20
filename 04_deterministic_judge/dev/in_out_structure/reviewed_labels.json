@@ -1,0 +1,52 @@
+
+{
+  "label_set_id": "labels-001",
+  "task_id": "task-001",
+  "evaluation_set_id": "eval-001",
+  "evaluation_set_version": "1.0",
+
+  "review": {
+    "review_id": "review-001",
+    "status": "approved",
+    "reviewed_at": "2026-11-15T09:30:00Z",
+    "reviewed_by": "security_reviewer"
+  },
+
+  "labels": [
+    {
+      "event_id": "E1",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "evidence-E1",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E2",
+      "label": "attack",
+      "attack_id": "attack-001",
+      "evidence_ref": "evidence-E2",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E3",
+      "label": "benign",
+      "attack_id": null,
+      "evidence_ref": "evidence-E3",
+      "review_status": "approved"
+    },
+    {
+      "event_id": "E4",
+      "label": "attack",
+      "attack_id": "attack-001",
+      "evidence_ref": "evidence-E4",
+      "review_status": "approved"
+    }
+  ],
+
+  "summary": {
+    "total_events": 4,
+    "benign_events": 2,
+    "attack_events": 2,
+    "unreviewed_events": 0
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "match_set_id": "matches-candidate-003",
+  "task_id": "task-003",
+  "evaluation_set_id": "eval-003",
+  "evaluation_set_version": "1.0",
+  "execution": {
+    "execution_id": "exec-candidate-003",
+    "status": "completed"
+  },
+  "rule": {
+    "rule_id": "rule-bundle",
+    "rule_version": "v2"
+  },
+  "matches": [
+    {
+      "event_id": "E03-01",
+      "rule_id": "rule-003",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:01Z",
+      "evidence_ref": "candidate-evidence-E03-01"
+    },
+    {
+      "event_id": "E03-02",
+      "rule_id": "rule-002",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:02Z",
+      "evidence_ref": "candidate-evidence-E03-02"
+    },
+    {
+      "event_id": "E03-03",
+      "rule_id": "rule-004",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:03Z",
+      "evidence_ref": "candidate-evidence-E03-03"
+    },
+    {
+      "event_id": "E03-06",
+      "rule_id": "rule-003",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:04Z",
+      "evidence_ref": "candidate-evidence-E03-06"
+    },
+    {
+      "event_id": "E03-07",
+      "rule_id": "rule-003",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:05Z",
+      "evidence_ref": "candidate-evidence-E03-07"
+    },
+    {
+      "event_id": "E03-08",
+      "rule_id": "rule-002",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:06Z",
+      "evidence_ref": "candidate-evidence-E03-08"
+    },
+    {
+      "event_id": "E03-09",
+      "rule_id": "rule-005",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-13T10:00:07Z",
+      "evidence_ref": "candidate-evidence-E03-09"
+    }
+  ],
+  "event_inventory": [
+    "E03-01",
+    "E03-02",
+    "E03-03",
+    "E03-04",
+    "E03-05",
+    "E03-06",
+    "E03-07",
+    "E03-08",
+    "E03-09",
+    "E03-10"
+  ],
+  "rules": [
+    {
+      "rule_id": "rule-001",
+      "rule_version": "v2"
+    },
+    {
+      "rule_id": "rule-002",
+      "rule_version": "v2"
+    },
+    {
+      "rule_id": "rule-003",
+      "rule_version": "v2"
+    },
+    {
+      "rule_id": "rule-004",
+      "rule_version": "v2"
+    },
+    {
+      "rule_id": "rule-005",
+      "rule_version": "v2"
+    }
+  ],
+  "summary": {
+    "total_events": 10,
+    "total_matches": 7,
+    "available_rules": [
+      "rule-001",
+      "rule-002",
+      "rule-003",
+      "rule-004",
+      "rule-005"
+    ]
+  }
+}

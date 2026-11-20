@@ -1,0 +1,53 @@
+
+{
+  "match_set_id": "matches-baseline-001",
+  "task_id": "task-001",
+  "evaluation_set_id": "eval-001",
+  "evaluation_set_version": "1.0",
+
+  "execution": {
+    "execution_id": "exec-baseline-001",
+    "status": "completed",
+    "executed_at": "2026-11-15T10:00:00Z"
+  },
+
+  "rule": {
+    "rule_id": "rule-001",
+    "rule_version": "v1"
+  },
+
+  "matches": [
+    {
+      "event_id": "E1",
+      "rule_id": "rule-001",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-15T10:00:01Z",
+      "evidence_ref": "evidence-E1"
+    },
+    {
+      "event_id": "E2",
+      "rule_id": "rule-001",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-15T10:00:02Z",
+      "evidence_ref": "evidence-E2"
+    },
+    {
+      "event_id": "E3",
+      "rule_id": "rule-001",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-15T10:00:03Z",
+      "evidence_ref": "evidence-E3"
+    },
+    {
+      "event_id": "E4",
+      "rule_id": "rule-001",
+      "match_key": "login-threshold",
+      "matched_at": "2026-11-15T10:00:04Z",
+      "evidence_ref": "evidence-E4"
+    }
+  ],
+
+  "summary": {
+    "total_matches": 4
+  }
+}
