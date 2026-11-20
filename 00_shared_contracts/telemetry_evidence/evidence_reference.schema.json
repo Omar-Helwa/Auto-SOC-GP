@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/telemetry_evidence/evidence_reference/0.1.0",
+  "title": "EvidenceReference",
+  "description": "The minimal, citation-only subset of the platform-owned telemetry_evidence contract that LLM roles (red, blue) are permitted to embed. A reference points at evidence held in the platform evidence store; it is NOT the evidence itself. Model claims are never evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "evidence_type"],
+  "properties": {
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Immutable id of a verified evidence record in the platform evidence store."
+    },
+    "evidence_type": {
+      "type": "string",
+      "enum": ["splunk_result", "reviewed_label", "telemetry"],
+      "description": "Kind of verified evidence being referenced."
+    },
+    "provenance_ref": {
+      "type": "string",
+      "description": "Optional pointer to the evidence source/provenance (e.g. evidence_store path)."
+    }
+  }
+}

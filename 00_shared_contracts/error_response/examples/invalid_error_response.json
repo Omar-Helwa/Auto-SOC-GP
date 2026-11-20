@@ -1,0 +1,9 @@
+{
+  "_why_invalid": "category 'malformed' is not in the allowed enum, and the required source_component field is missing.",
+  "contract_version": "0.1.0",
+  "error_id": "err-7c9a1b20-0002",
+  "task_id": "round-2026-11-17-001",
+  "category": "malformed",
+  "message": "Something went wrong.",
+  "retryable": true
+}
