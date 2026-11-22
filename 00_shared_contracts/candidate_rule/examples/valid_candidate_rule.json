@@ -1,0 +1,24 @@
+{
+  "contract_version": "0.1.0",
+  "candidate_id": "cand-rule-0001",
+  "task_id": "round-001",
+  "proposal_id": "6d1b0c9e-2f4a-4e7b-9a35-0c8e5f7d2a11",
+  "detection_id": "det-susp-powershell",
+  "base_rule_version": "1.0.0",
+  "candidate_rule_version": "1.0.1-cand1",
+  "applied_edit_count": 1,
+  "compiled_rule": {
+    "language": "splunk_spl",
+    "text": "index=lab_eval sourcetype=XmlWinEventLog Image=*powershell.exe CommandLine=*-enc* NOT (User=\"CORP\\\\svc-inventory\" ParentImage=\"C:\\\\Windows\\\\System32\\\\taskeng.exe\")",
+    "sha256": "22ed24434d3c6b85205d5f38c1c5ceedf11e8469ca221df8ad4f8cf7106f88dd"
+  },
+  "validation": {
+    "status": "passed",
+    "checks": [
+      "schema",
+      "scope",
+      "permissions",
+      "compile"
+    ]
+  }
+}

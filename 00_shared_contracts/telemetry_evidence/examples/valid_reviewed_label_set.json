@@ -1,0 +1,47 @@
+{
+  "contract_version": "0.1.0",
+  "label_set_id": "ls-0001",
+  "label_set_version": "1",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "evalset-01"
+  },
+  "coverage": {
+    "total_events": 3,
+    "complete": true
+  },
+  "labels": [
+    {
+      "event_id": "evt-0007",
+      "label": "attack",
+      "source": "lab_telemetry",
+      "scenario_id": "atk-enc-ps-01",
+      "attack_technique": "T1059.001",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      }
+    },
+    {
+      "event_id": "evt-0042",
+      "label": "benign",
+      "source": "lab_telemetry",
+      "scenario_id": "ben-admin-script-03",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1"
+      }
+    },
+    {
+      "event_id": "evt-0100",
+      "label": "benign",
+      "source": "public_dataset",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-2"
+      }
+    }
+  ]
+}
