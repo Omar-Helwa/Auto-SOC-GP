@@ -35,28 +35,45 @@ def main() -> int:
     red_proposal = _load(RED_EXAMPLES / "valid_red_proposal.json")
     red_proposal["task_id"] = task_id  # thread the round id through
 
+    shared = REPO_ROOT / "00_shared_contracts"
+    round_request = _load(shared / "round_request" / "examples" / "valid_round_request.json")
+    round_request["task_id"] = task_id
+
     registry = ServiceRegistry()
     registry.register("red", static_service("red_proposal", lambda _p: red_proposal))
-    registry.register("platform_execute", static_service(
-        "telemetry_evidence", lambda _p: {"task_id": task_id, "evidence": "mock-telemetry"}))
-    registry.register("blue", static_service(
-        "blue_proposal", lambda _p: {"task_id": task_id, "edit": "mock-rule-edit"}))
-    registry.register("platform_compile", static_service(
-        "candidate_rule", lambda _p: {"task_id": task_id, "rule": "mock-candidate"}))
-    registry.register("judge", static_service(
-        "judge_result", lambda _p: {"task_id": task_id, "decision": "pass"}))
-
-    round_request = {
+    telemetry = {
+        "contract_version": "0.1.0",
+        "evidence_id": f"evidence-{task_id}",
         "task_id": task_id,
-        "detection": {"detection_id": "win-encoded-powershell", "rule_version": "3.2.0",
-                      "logic_summary": "Alerts on powershell -EncodedCommand."},
-        "benign_constraints": {
-            "allowed_scenario_families": ["admin_automation"],
-            "max_workflow_steps": 5,
-            "allowed_actions": ["scheduled_task", "script_execution"],
-        },
-        "prompt_version": "red-system@0.1.0",
+        "detection_id": round_request["detection"]["detection_id"],
+        "evidence_type": "telemetry",
+        "evidence_ref": f"evidence://{task_id}/telemetry",
+        "verified": True,
     }
+    registry.register("platform_execute", static_service("telemetry_evidence", lambda _p: telemetry))
+    labels = _load(shared / "telemetry_evidence" / "examples" / "valid_reviewed_label_set.json")
+    registry.register("platform_labels", static_service("reviewed_label_set", lambda _p: labels))
+    baseline = _load(shared / "candidate_rule" / "examples" / "valid_match_set.json")
+    baseline.update(task_id=task_id, role="baseline", rule_version=round_request["detection"]["rule_version"])
+    baseline.pop("candidate_ref", None)
+    registry.register("platform_baseline", static_service("match_set", lambda _p: baseline))
+
+    blue_proposal = _load(shared / "blue_proposal" / "examples" / "valid_blue_proposal.json")
+    blue_proposal["task_id"] = task_id
+    candidate_rule = _load(shared / "candidate_rule" / "examples" / "valid_candidate_rule.json")
+    candidate_rule["task_id"] = task_id
+    candidate_matches = _load(shared / "candidate_rule" / "examples" / "valid_match_set.json")
+    candidate_matches.update(
+        task_id=task_id,
+        candidate_ref=candidate_rule["candidate_id"],
+        rule_version=candidate_rule["candidate_rule_version"],
+    )
+    registry.register("blue", static_service("blue_proposal", lambda _p: blue_proposal))
+    registry.register("platform_compile", static_service("candidate_rule", lambda _p: candidate_rule))
+    registry.register("platform_candidate_matches", static_service("match_set", lambda _p: candidate_matches))
+    judge_result = _load(shared / "judge_result" / "examples" / "valid_judge_result_pass.json")
+    judge_result["task_id"] = task_id
+    registry.register("judge", static_service("judge_result", lambda _p: judge_result))
 
     controller = RoundController(repo, registry)
     outcome = controller.run_round(round_request)
@@ -68,8 +85,8 @@ def main() -> int:
         print(f"  - {role:18} -> {contract}")
     print(f"  - feedback_record    -> id {outcome.feedback_id}")
     print("\nDocument counts for this task_id:")
-    for contract in ("round_request", "red_proposal", "telemetry_evidence",
-                     "blue_proposal", "candidate_rule", "judge_result", "feedback_record"):
+    for contract in ("round_request", "red_proposal", "telemetry_evidence", "reviewed_label_set",
+                     "blue_proposal", "candidate_rule", "match_set", "judge_result", "feedback_record"):
         print(f"  {contract:20} {repo.count(contract, {'task_id': task_id})}")
     repo.close()
     return 0

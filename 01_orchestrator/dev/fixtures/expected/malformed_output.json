@@ -1,0 +1,15 @@
+{
+  "scenario": "malformed_output",
+  "terminal_state": "failed",
+  "outcome": "failed",
+  "attempt_outcomes": {
+    "red_proposed": [
+      "failed"
+    ]
+  },
+  "required_storage": [
+    "round_record",
+    "audit_records"
+  ],
+  "error_category": "validation"
+}

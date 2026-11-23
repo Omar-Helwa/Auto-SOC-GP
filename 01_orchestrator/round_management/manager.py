@@ -1,11 +1,13 @@
 """RoundManager: creates, tracks and closes rounds.
 
 Responsibilities:
-  * create a round with a fixed identifier and frozen configuration
+  * create a round from a ``round_request`` (the round id is its ``task_id``)
   * enforce the Architecture 1 state order
+  * require each state to reference the contract messages it produces
   * count attempts and enforce the retry and timeout limits
-  * record every transition with a timestamp and artifact reference
-  * close the round as completed, failed or inconclusive
+  * record every transition with a timestamp and artifact references
+  * close the round as completed, failed or inconclusive, storing failures as
+    contract-valid ``error_response`` messages
 
 It does NOT call red, blue, the platform or the judge, and it never decides
 whether a candidate passes; it only records the decision the judge returned.
@@ -18,23 +20,35 @@ import uuid
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
+from .contracts import (
+    CONTRACT_VERSION,
+    FEEDBACK_RECORD,
+    JUDGE_DECISIONS,
+    KNOWN_ARTIFACTS,
+    SOURCE_COMPONENT,
+)
 from .errors import (
+    DuplicateRoundError,
     InvalidArgumentError,
     InvalidTransitionError,
     IntegrityError,
+    MissingArtifactError,
     ROUND_ERROR_CATEGORIES,
     RetryExhaustedError,
     RoundTimedOutError,
     RoundClosedError,
-    RoundNotFoundError,
     RoundManagementError,
+    RoundNotFoundError,
+    make_error_response,
 )
 from .models import AttemptRecord, RoundConfig, RoundRecord, Transition
 from .states import (
+    ALLOWED_ARTIFACTS,
     ALLOWED_TRANSITIONS,
     FORWARD_PATH,
+    REQUIRED_ARTIFACTS,
     STEP_NUMBER,
     RoundState,
     is_terminal,
@@ -45,15 +59,15 @@ from .store import RoundStore
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
 
-VALID_JUDGE_DECISIONS = ("pass", "reject", "inconclusive")
+VALID_JUDGE_DECISIONS = JUDGE_DECISIONS
 
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _default_id() -> str:
-    return f"round-{uuid.uuid4().hex[:12]}"
+def _default_error_id() -> str:
+    return str(uuid.uuid4())
 
 
 class RoundManager:
@@ -61,11 +75,11 @@ class RoundManager:
         self,
         store: RoundStore,
         clock: Optional[Clock] = None,
-        id_factory: Optional[IdFactory] = None,
+        error_id_factory: Optional[IdFactory] = None,
     ) -> None:
         self._store = store
         self._clock = clock or _utc_now
-        self._id_factory = id_factory or _default_id
+        self._error_id_factory = error_id_factory or _default_error_id
         self._lock = threading.RLock()
 
     # -- helpers
@@ -99,32 +113,57 @@ class RoundManager:
             )
         return record
 
+    @staticmethod
+    def _check_artifacts(
+        record: Optional[RoundRecord], to_state: RoundState, artifacts: Optional[Mapping[str, str]]
+    ) -> Dict[str, str]:
+        """Validate the contract message references given for a state change."""
+        given = dict(artifacts or {})
+        for name, ref in given.items():
+            if name not in KNOWN_ARTIFACTS:
+                raise InvalidArgumentError(
+                    f"Unknown artifact name {name!r}; expected one of {sorted(KNOWN_ARTIFACTS)}"
+                )
+            if not isinstance(ref, str) or not ref.strip():
+                raise InvalidArgumentError(f"Artifact {name!r} needs a non-empty reference")
+            if record is not None and name in record.artifacts:
+                raise InvalidArgumentError(f"Artifact {name!r} was already recorded for this round")
+        not_allowed = sorted(set(given) - ALLOWED_ARTIFACTS.get(to_state, frozenset()))
+        if not_allowed:
+            raise InvalidArgumentError(
+                f"Artifact(s) {not_allowed} are not allowed when entering {to_state.value}",
+                {"state": to_state.value, "not_allowed": not_allowed},
+            )
+        missing = [name for name in REQUIRED_ARTIFACTS.get(to_state, ()) if name not in given]
+        if missing:
+            raise MissingArtifactError(
+                f"Entering {to_state.value} requires artifact(s): {', '.join(missing)}",
+                {"state": to_state.value, "missing_artifacts": missing},
+            )
+        return given
+
     def _append(
         self,
         record: RoundRecord,
         to_state: RoundState,
         *,
         detail: str = "",
-        artifact_name: Optional[str] = None,
-        artifact_ref: Optional[str] = None,
+        artifacts: Optional[Mapping[str, str]] = None,
     ) -> None:
+        artifacts = dict(artifacts or {})
         now = self._now(record.transitions[-1].at if record.transitions else None)
         for index, attempt in enumerate(record.attempt_log):
             if attempt.outcome != "running":
                 continue
             if attempt.state is to_state and not is_terminal(to_state):
-                record.attempt_log[index] = replace(
-                    attempt,
-                    finished_at=now,
-                    outcome="succeeded",
-                    raw_output_ref=artifact_ref or attempt.raw_output_ref,
-                )
+                record.attempt_log[index] = replace(attempt, finished_at=now, outcome="succeeded")
             elif is_terminal(to_state):
                 record.attempt_log[index] = replace(
                     attempt,
                     finished_at=now,
                     outcome="failed",
                     error=detail or "round closed before attempt completed",
+                    error_category="internal",
                 )
         record.transitions.append(
             Transition(
@@ -134,12 +173,10 @@ class RoundManager:
                 at=now,
                 step=STEP_NUMBER.get(to_state),
                 detail=detail,
-                artifact_name=artifact_name,
-                artifact_ref=artifact_ref,
+                artifacts=artifacts,
             )
         )
-        if artifact_name and artifact_ref:
-            record.artifacts[artifact_name] = artifact_ref
+        record.artifacts.update(artifacts)
         record.state = to_state
         record.updated_at = now
         record.step_started_at = now
@@ -147,15 +184,47 @@ class RoundManager:
         if is_terminal(to_state):
             record.closed_at = now
 
+    def _make_error(
+        self,
+        record: RoundRecord,
+        category: str,
+        message: str,
+        *,
+        retryable: bool,
+        details: Optional[Dict[str, Any]],
+        occurred_at: str,
+    ) -> Dict[str, Any]:
+        """Build the ``error_response`` stored on a failed round."""
+        merged = dict(details or {})
+        merged["failed_in_state"] = record.state.value
+        try:
+            return make_error_response(
+                category,
+                message,
+                task_id=record.config.task_id,
+                retryable=retryable,
+                details=merged,
+                error_id=self._error_id_factory(),
+                timestamp=occurred_at,
+            )
+        except ValueError as exc:
+            raise RoundManagementError(f"Cannot build a valid error_response: {exc}") from exc
+
+    def _error_time(self, record: RoundRecord) -> str:
+        return self._now(record.transitions[-1].at if record.transitions else None)
+
     # -- lifecycle
     def create_round(self, request: Union[RoundConfig, Dict[str, Any]]) -> RoundRecord:
-        """Step 1: open a round. Validates and freezes the configuration."""
+        """Step 1: open a round. Validates the ``round_request`` and freezes it.
+
+        The round id is the request's ``task_id``; a task_id can open one round.
+        """
         config = request if isinstance(request, RoundConfig) else RoundConfig.from_request(request)
         with self._lock:
             now = self._now()
-            round_id = self._id_factory()
+            round_id = config.task_id
             if self._store.load(round_id) is not None:
-                raise RoundManagementError(f"Round id already exists: {round_id}")
+                raise DuplicateRoundError(f"A round already exists for task_id {round_id}")
             record = RoundRecord(
                 round_id=round_id,
                 config=config,
@@ -190,10 +259,13 @@ class RoundManager:
         to_state: RoundState,
         *,
         detail: str = "",
-        artifact_name: Optional[str] = None,
-        artifact_ref: Optional[str] = None,
+        artifacts: Optional[Mapping[str, str]] = None,
     ) -> RoundRecord:
         """Move one step forward along the fixed Architecture 1 path.
+
+        ``artifacts`` maps contract names to references for the messages the
+        component returned (for example ``{"red_proposal": "audit://..."}``).
+        Each state requires specific ones; see ``REQUIRED_ARTIFACTS``.
 
         Failure and inconclusive exits use ``fail`` / ``mark_inconclusive``;
         completion uses ``complete`` so the judge decision is recorded.
@@ -202,25 +274,18 @@ class RoundManager:
             raise InvalidTransitionError(
                 f"Use fail(), mark_inconclusive() or complete() to move to {to_state.value}"
             )
-        if (artifact_name is None) != (artifact_ref is None):
-            raise InvalidArgumentError("artifact_name and artifact_ref must be given together")
         with self._lock:
             if self.enforce_timeout(round_id):
                 raise RoundTimedOutError(f"Round {round_id} timed out; the late result was not accepted")
             record = self._load_open(round_id)
             self._check_allowed(record, to_state)
+            given = self._check_artifacts(record, to_state, artifacts)
             prior_attempts = [a for a in record.attempt_log if a.state is to_state]
             if prior_attempts and prior_attempts[-1].outcome != "succeeded":
                 raise InvalidTransitionError(
                     f"The latest {to_state.value} attempt has not succeeded"
                 )
-            self._append(
-                record,
-                to_state,
-                detail=detail,
-                artifact_name=artifact_name,
-                artifact_ref=artifact_ref,
-            )
+            self._append(record, to_state, detail=detail, artifacts=given)
             self._store.save(record)
             return self._load(round_id)
 
@@ -253,15 +318,17 @@ class RoundManager:
             if any(a.state is target and a.outcome == "running" for a in record.attempt_log):
                 raise InvalidTransitionError(f"An attempt for {key} is already running")
             if used >= limit:
+                failed = [a for a in record.attempt_log if a.state is target and a.outcome == "failed"]
+                category = (failed[-1].error_category if failed else None) or "internal"
+                details = {"reason": "retry_exhausted", "state": key, "max_attempts": limit}
                 self.fail(
                     round_id,
-                    category="retry",
+                    category=category,
                     message=f"Step {key} exhausted {limit} attempt(s)",
-                    details={"state": key, "max_attempts": limit},
+                    details=details,
                 )
                 raise RetryExhaustedError(
-                    f"Round {round_id}: {limit} attempt(s) used in state {key}",
-                    {"state": key, "max_attempts": limit},
+                    f"Round {round_id}: {limit} attempt(s) used in state {key}", details, category
                 )
             record.attempts[key] = used + 1
             not_before = record.transitions[-1].at
@@ -283,15 +350,23 @@ class RoundManager:
         outcome: str,
         *,
         error: Optional[str] = None,
+        error_category: str = "internal",
         raw_output_ref: Optional[str] = None,
     ) -> RoundRecord:
-        """Record an attempt result; exhaust retries as soon as the last fails."""
+        """Record an attempt result; exhaust retries as soon as the last fails.
+
+        ``error_category`` is the ``error_response`` category of a failed
+        attempt (for example ``dependency`` when the model gateway was down). It
+        becomes the round's error category if this was the last allowed attempt.
+        """
         if outcome not in ("succeeded", "failed"):
             raise InvalidArgumentError("outcome must be 'succeeded' or 'failed'")
         if outcome == "failed" and (not isinstance(error, str) or not error.strip()):
             raise InvalidArgumentError("error is required for a failed attempt")
         if outcome == "succeeded" and error is not None:
             raise InvalidArgumentError("error is only valid for a failed attempt")
+        if error_category not in ROUND_ERROR_CATEGORIES:
+            raise InvalidArgumentError(f"Unknown error category: {error_category}")
         if raw_output_ref is not None and (not isinstance(raw_output_ref, str) or not raw_output_ref.strip()):
             raise InvalidArgumentError("raw_output_ref must be a non-empty string when provided")
         with self._lock:
@@ -314,21 +389,21 @@ class RoundManager:
                 finished_at=now,
                 outcome=outcome,
                 error=error,
+                error_category=error_category if outcome == "failed" else None,
                 raw_output_ref=raw_output_ref,
             )
             record.updated_at = now
             if outcome == "failed" and attempt.number >= record.config.max_attempts_per_step:
-                record.error = {
-                    "error_category": "retry",
-                    "message": f"Step {target.value} failed after {attempt.number} attempt(s): {error}",
-                    "retryable": False,
-                    "round_id": round_id,
-                    "failed_in_state": record.state.value,
-                    "details": {"state": target.value, "max_attempts": attempt.number},
-                    "occurred_at": now,
-                }
+                record.error = self._make_error(
+                    record,
+                    error_category,
+                    f"Step {target.value} failed after {attempt.number} attempt(s): {error}",
+                    retryable=False,
+                    details={"reason": "retry_exhausted", "state": target.value, "max_attempts": attempt.number},
+                    occurred_at=now,
+                )
                 record.outcome = "failed"
-                self._append(record, RoundState.FAILED, detail=f"retry: step {target.value} exhausted")
+                self._append(record, RoundState.FAILED, detail=f"{error_category}: step {target.value} exhausted retries")
             self._store.save(record)
             return self._load(round_id)
 
@@ -352,7 +427,7 @@ class RoundManager:
                 message=f"Step exceeded {record.config.step_timeout_seconds}s in state "
                 f"{record.state.value}",
                 retryable=True,
-                details={"state": record.state.value},
+                details={"state": record.state.value, "step_timeout_seconds": record.config.step_timeout_seconds},
             )
             return True
 
@@ -366,46 +441,58 @@ class RoundManager:
         retryable: bool = False,
         details: Optional[Dict[str, Any]] = None,
     ) -> RoundRecord:
-        """Close the round as FAILED and store a contract-style error."""
+        """Close the round as FAILED and store a contract-valid ``error_response``."""
         if category not in ROUND_ERROR_CATEGORIES:
             raise InvalidArgumentError(f"Unknown round error category: {category}")
+        if not isinstance(message, str) or not message.strip():
+            raise InvalidArgumentError("message must be a non-empty string")
         self._validate_json(details or {}, "error details")
         with self._lock:
             record = self._load_open(round_id)
-            failed_in = record.state.value
-            record.error = {
-                "error_category": category,
-                "message": message,
-                "retryable": retryable,
-                "round_id": round_id,
-                "failed_in_state": failed_in,
-                "details": details or {},
-                "occurred_at": self._now(record.transitions[-1].at if record.transitions else None),
-            }
+            record.error = self._make_error(
+                record,
+                category,
+                message,
+                retryable=retryable,
+                details=details,
+                occurred_at=self._error_time(record),
+            )
             record.outcome = "failed"
             self._append(record, RoundState.FAILED, detail=f"{category}: {message}")
             self._store.save(record)
             return self._load(round_id)
 
     def mark_inconclusive(
-        self, round_id: str, reason: str, *, details: Optional[Dict[str, Any]] = None
+        self,
+        round_id: str,
+        reason: str,
+        *,
+        details: Optional[Dict[str, Any]] = None,
+        category: str = "missing_information",
     ) -> RoundRecord:
-        """Close the round as INCONCLUSIVE (e.g. evidence missing or incomplete)."""
+        """Close the round as INCONCLUSIVE (e.g. evidence missing or incomplete).
+
+        Use this when the orchestrator itself cannot continue because evidence
+        is missing or incomplete (see the ``incomplete`` rules in
+        ``validation_rules.json``). When the judge returns ``inconclusive``,
+        use ``complete()`` instead.
+        """
         if not isinstance(reason, str) or not reason.strip():
             raise InvalidArgumentError("reason must be a non-empty string")
+        if category not in ROUND_ERROR_CATEGORIES:
+            raise InvalidArgumentError(f"Unknown round error category: {category}")
         self._validate_json(details or {}, "inconclusive details")
         with self._lock:
             record = self._load_open(round_id)
             record.outcome = "inconclusive"
-            record.error = {
-                "error_category": "validation",
-                "message": reason,
-                "retryable": False,
-                "round_id": round_id,
-                "failed_in_state": record.state.value,
-                "details": details or {},
-                "occurred_at": self._now(record.transitions[-1].at if record.transitions else None),
-            }
+            record.error = self._make_error(
+                record,
+                category,
+                reason,
+                retryable=False,
+                details=details,
+                occurred_at=self._error_time(record),
+            )
             self._append(record, RoundState.INCONCLUSIVE, detail=reason)
             self._store.save(record)
             return self._load(round_id)
@@ -415,44 +502,34 @@ class RoundManager:
     ) -> RoundRecord:
         """Step 8: close the round after the feedback record is stored.
 
-        The decision is whatever the judge returned; this method only records
-        it. A judge ``inconclusive`` closes the round as INCONCLUSIVE.
+        The decision is whatever the judge returned (``pass``, ``reject`` or
+        ``inconclusive``, case-insensitive); this method only records it. A
+        judge ``inconclusive`` is a valid judge_result, not an error, so the
+        round closes as INCONCLUSIVE with no error stored.
+
+        Like ``advance()``, this honours the step timeout: if the round has been
+        in ``judged`` longer than ``step_timeout_seconds``, it is failed with a
+        ``timeout`` error and ``RoundTimedOutError`` is raised.
         """
-        if judge_decision not in VALID_JUDGE_DECISIONS:
+        decision = judge_decision.strip().lower() if isinstance(judge_decision, str) else judge_decision
+        if decision not in VALID_JUDGE_DECISIONS:
             raise InvalidArgumentError(
                 f"judge_decision must be one of {VALID_JUDGE_DECISIONS}, got {judge_decision!r}"
             )
-        if not feedback_ref:
+        if not isinstance(feedback_ref, str) or not feedback_ref.strip():
             raise InvalidArgumentError("feedback_ref is required to close a round")
         with self._lock:
+            if self.enforce_timeout(round_id):
+                raise RoundTimedOutError(f"Round {round_id} timed out; the late feedback record was not accepted")
             record = self._load_open(round_id)
             if record.state is not RoundState.JUDGED:
                 raise InvalidTransitionError(
                     f"Round can only be completed from judged, not {record.state.value}"
                 )
-            target = (
-                RoundState.INCONCLUSIVE
-                if judge_decision == "inconclusive"
-                else RoundState.COMPLETED
-            )
-            record.outcome = judge_decision
-            if judge_decision == "inconclusive":
-                record.error = {
-                    "error_category": "validation",
-                    "message": "Judge returned an inconclusive result",
-                    "retryable": False,
-                    "round_id": round_id,
-                    "failed_in_state": record.state.value,
-                    "details": {"judge_decision": judge_decision},
-                    "occurred_at": self._now(record.transitions[-1].at),
-                }
-            self._append(
-                record,
-                target,
-                detail=f"judge decision: {judge_decision}",
-                artifact_name="feedback_record",
-                artifact_ref=feedback_ref,
-            )
+            target = RoundState.INCONCLUSIVE if decision == "inconclusive" else RoundState.COMPLETED
+            given = self._check_artifacts(record, target, {FEEDBACK_RECORD: feedback_ref})
+            record.outcome = decision
+            self._append(record, target, detail=f"judge decision: {decision}", artifacts=given)
             self._store.save(record)
             return self._load(round_id)
 
@@ -460,6 +537,8 @@ class RoundManager:
     def verify_integrity(self, round_id: str) -> None:
         """Raise IntegrityError if the persisted round record is inconsistent."""
         record = self._load(round_id)
+        if record.round_id != record.config.task_id:
+            raise IntegrityError(f"Round {round_id}: round id differs from the config task_id")
         if record.config.fingerprint() != record.config_fingerprint:
             raise IntegrityError(f"Round {round_id}: frozen configuration was modified")
         seqs = [t.sequence for t in record.transitions]
@@ -485,10 +564,20 @@ class RoundManager:
                 raise IntegrityError(f"Round {round_id}: invalid timestamp at sequence {t.sequence}") from exc
             if at.tzinfo is None or (previous_at is not None and at < previous_at):
                 raise IntegrityError(f"Round {round_id}: invalid timestamp order at sequence {t.sequence}")
-            if (t.artifact_name is None) != (t.artifact_ref is None):
-                raise IntegrityError(f"Round {round_id}: incomplete artifact at sequence {t.sequence}")
-            if t.artifact_name is not None:
-                expected_artifacts[t.artifact_name] = t.artifact_ref
+            for name, ref in t.artifacts.items():
+                if name not in ALLOWED_ARTIFACTS.get(t.to_state, frozenset()):
+                    raise IntegrityError(
+                        f"Round {round_id}: artifact {name!r} is not allowed at sequence {t.sequence}"
+                    )
+                if not isinstance(ref, str) or not ref.strip() or name in expected_artifacts:
+                    raise IntegrityError(f"Round {round_id}: invalid artifact {name!r} at sequence {t.sequence}")
+                expected_artifacts[name] = ref
+            if t.to_state in FORWARD_PATH[1:] and any(
+                name not in t.artifacts for name in REQUIRED_ARTIFACTS.get(t.to_state, ())
+            ):
+                raise IntegrityError(
+                    f"Round {round_id}: {t.to_state.value} is missing a required artifact at sequence {t.sequence}"
+                )
             previous = t.to_state
             previous_at = at
         if previous != record.state:
@@ -530,9 +619,22 @@ class RoundManager:
         if not consistent:
             raise IntegrityError(f"Round {round_id}: outcome/error disagrees with state")
         if record.error is not None:
-            if not isinstance(record.error, dict) or record.error.get("round_id") != round_id:
-                raise IntegrityError(f"Round {round_id}: invalid error record")
-            parse_timestamp(record.error.get("occurred_at"), "error.occurred_at")
+            error = record.error
+            valid_error = (
+                isinstance(error, dict)
+                and error.get("contract_version") == CONTRACT_VERSION
+                and isinstance(error.get("error_id"), str) and error["error_id"]
+                and error.get("category") in ROUND_ERROR_CATEGORIES
+                and error.get("source_component") == SOURCE_COMPONENT
+                and isinstance(error.get("message"), str) and error["message"]
+                and type(error.get("retryable")) is bool
+                and isinstance(error.get("details", {}), dict)
+                and error.get("task_id") == record.config.task_id
+                and error.get("timestamp") is not None
+            )
+            if not valid_error:
+                raise IntegrityError(f"Round {round_id}: stored error is not a valid error_response")
+            parse_timestamp(error["timestamp"], "error.timestamp")
 
         attempt_counts: Dict[RoundState, int] = {}
         running_attempts = []
@@ -545,6 +647,8 @@ class RoundManager:
             attempt_counts[attempt.state] = expected_number
             started = parse_timestamp(attempt.started_at, "attempt.started_at")
             finished = parse_timestamp(attempt.finished_at, "attempt.finished_at")
+            if attempt.error_category is not None and attempt.error_category not in ROUND_ERROR_CATEGORIES:
+                raise IntegrityError(f"Round {round_id}: attempt has an unknown error category")
             if attempt.outcome == "running":
                 if finished is not None or attempt.error is not None:
                     raise IntegrityError(f"Round {round_id}: running attempt has completion data")
@@ -576,9 +680,14 @@ class RoundManager:
             raise IntegrityError(f"Round {round_id}: attempt limit was exceeded")
 
     def error_response(self, round_id: str) -> Optional[Dict[str, Any]]:
-        """Return the stored error for a failed/inconclusive round, else None.
+        """Return the stored ``error_response`` message for a failed round, else None.
 
-        Shape is provisional until the shared ``error_response`` contract is
-        agreed; align the field names with that contract when it lands.
+        Also set when the orchestrator closed a round as inconclusive because
+        information was missing. A judge-decided ``inconclusive`` has no error;
+        read the judge_result artifact for the reasons.
         """
         return self._load(round_id).error
+
+    def pinned_versions(self, round_id: str) -> Dict[str, str]:
+        """The version references frozen with this round, for audit and replay."""
+        return self._load(round_id).config.pinned_versions()

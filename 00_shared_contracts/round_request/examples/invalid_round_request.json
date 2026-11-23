@@ -1,0 +1,21 @@
+{
+  "contract_version": "0.1.0",
+  "task_id": "round 001/../x",
+  "detection": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0",
+    "logic_summary": "Flags encoded PowerShell.",
+    "rule_language": "kql",
+    "rule_text": "x"
+  },
+  "benign_constraints": {
+    "allowed_scenario_families": ["malware_dev"],
+    "max_workflow_steps": 50,
+    "allowed_actions": ["process_execution"]
+  },
+  "dataset": { "dataset_id": "lab-sysmon", "dataset_version": "2026.11.1" },
+  "criteria": { "criteria_id": "criteria-001", "criteria_version": "1.0", "thresholds": {} },
+  "versions": { "red_prompt": "red-system@0.1.0", "blue_prompt": "blue-system@0.1.0", "contracts": "0.1.0" },
+  "judge_result": { "decision": "pass" },
+  "_why_invalid": "task_id is not path-safe, unsupported rule_language 'kql', scenario family out of enum, max_workflow_steps above 10, dataset missing evaluation_set_id, empty criteria.thresholds, versions missing model_id, and a forbidden 'judge_result' field."
+}

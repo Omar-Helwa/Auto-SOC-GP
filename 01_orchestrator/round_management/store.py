@@ -1,33 +1,31 @@
 """Persistence for round records.
 
-``RoundStore`` is the interface; the manager depends only on it. Two
-implementations are provided:
+``RoundStore`` is the interface; the manager depends only on it. Three
+implementations exist:
 
-* ``InMemoryRoundStore``  - for tests and fake rounds.
-* ``JsonFileRoundStore``  - one JSON file per round, written atomically.
-  Point it at ``dev/temp_outputs`` for local runs (disposable data), or at a
-  real location when you need durable records.
+* ``MongoRoundStore`` (``mongo_store.py``) - the real store: one document per
+  round in MongoDB. Use it for anything shared or durable.
+* ``InMemoryRoundStore`` - for tests and fake rounds.
+* ``JsonFileRoundStore`` - one JSON file per round, written atomically. A
+  single-process development store only: it has no cross-process locking, so
+  never point two processes at the same folder.
 
-Both use optimistic concurrency: ``save`` only succeeds if the record's
-revision matches what is stored, then increments the revision.
+All use optimistic concurrency: ``save`` only succeeds if the record's revision
+matches what is stored, then increments the revision.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import tempfile
 import threading
-import time
 from abc import ABC, abstractmethod
-from contextlib import contextmanager
 from typing import Dict, List, Optional
 
+from .contracts import TASK_ID_PATTERN
 from .errors import ConcurrencyError, IntegrityError, RoundManagementError
 from .models import RoundRecord
-
-_SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 class RoundStore(ABC):
@@ -80,7 +78,7 @@ class JsonFileRoundStore(RoundStore):
         self._lock = threading.Lock()
 
     def _path(self, round_id: str) -> str:
-        if not _SAFE_ID.match(round_id):
+        if not TASK_ID_PATTERN.match(round_id):
             raise RoundManagementError(f"Unsafe round id: {round_id!r}")
         return os.path.join(self._dir, f"{round_id}.json")
 
@@ -94,42 +92,8 @@ class JsonFileRoundStore(RoundStore):
         except json.JSONDecodeError as exc:
             raise IntegrityError(f"Round {round_id}: stored JSON is corrupt") from exc
 
-    @contextmanager
-    def _directory_lock(self):
-        """Lock writers across store instances and processes for this directory."""
-        lock_path = os.path.join(self._dir, ".round-store.lock")
-        with open(lock_path, "a+b") as lock_file:
-            if os.name == "nt":
-                import msvcrt
-
-                lock_file.seek(0)
-                if not lock_file.read(1):
-                    lock_file.seek(0)
-                    lock_file.write(b"0")
-                    lock_file.flush()
-                lock_file.seek(0)
-                while True:
-                    try:
-                        msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-                        break
-                    except OSError:
-                        time.sleep(0.05)
-                try:
-                    yield
-                finally:
-                    lock_file.seek(0)
-                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-                try:
-                    yield
-                finally:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
     def save(self, record: RoundRecord) -> None:
-        with self._lock, self._directory_lock():
+        with self._lock:
             existing = self._read(record.round_id)
             stored_rev = existing["revision"] if existing else 0
             if existing is None and record.revision != 0:

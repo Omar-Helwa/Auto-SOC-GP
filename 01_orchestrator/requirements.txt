@@ -1,0 +1,8 @@
+# Runtime dependencies for the orchestrator public interfaces and Mongo stores.
+jsonschema>=4.18
+referencing>=0.30
+pymongo>=4.6
+
+# Test-only MongoDB substitute used by the orchestrator unittest suite when no
+# local MongoDB server is available. Tests otherwise use Python's unittest.
+mongomock>=4.1

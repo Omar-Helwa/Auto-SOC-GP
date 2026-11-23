@@ -1,0 +1,49 @@
+{
+  "contract_version": "0.1.0",
+  "task_id": "task-004",
+  "round_id": "task-004",
+  "decision": {
+    "status": "INCONCLUSIVE",
+    "reasons": ["Candidate execution was incomplete."],
+    "failed_gates": [],
+    "failures": [
+      {
+        "code": "X-5",
+        "kind": "incomplete",
+        "message": "Candidate execution status was partial, not completed."
+      }
+    ]
+  },
+  "artifact_refs": {
+    "red_proposal": "mongo://red_proposal/665f1a2b3c4d5e6f7890ab11",
+    "telemetry_evidence": "mongo://telemetry_evidence/665f1a2b3c4d5e6f7890ab12",
+    "reviewed_label_set": "mongo://reviewed_label_set/665f1a2b3c4d5e6f7890ab13",
+    "blue_proposal": "mongo://blue_proposal/665f1a2b3c4d5e6f7890ab14",
+    "candidate_rule": "mongo://candidate_rule/665f1a2b3c4d5e6f7890ab15",
+    "baseline_match_set": "mongo://match_set/665f1a2b3c4d5e6f7890ab16",
+    "candidate_match_set": "mongo://match_set/665f1a2b3c4d5e6f7890ab17",
+    "judge_result": "mongo://judge_result/665f1a2b3c4d5e6f7890ab18"
+  },
+  "versions": {
+    "contracts": "0.1.0",
+    "criteria_version": "1.0"
+  },
+  "judge_result": {
+    "contract_version": "0.1.0",
+    "judge_input_id": "judge-input-task-004",
+    "task_id": "task-004",
+    "decision": {
+      "status": "INCONCLUSIVE",
+      "reasons": ["Candidate execution was incomplete."],
+      "failed_gates": [],
+      "failures": [
+        {
+          "code": "X-5",
+          "kind": "incomplete",
+          "message": "Candidate execution status was partial, not completed."
+        }
+      ]
+    }
+  },
+  "recorded_at": "2026-11-23T12:00:01Z"
+}
