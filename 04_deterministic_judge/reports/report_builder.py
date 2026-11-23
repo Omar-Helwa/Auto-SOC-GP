@@ -1,17 +1,13 @@
-from typing import Any, Mapping
+﻿from typing import Any, Mapping
 
-def build_report(
-    value: Mapping[str, Any],
-    baseline_metrics: Mapping[str, Any],
-    candidate_metrics: Mapping[str, Any],
-    comparison: Any,
-    gates: list[dict[str, Any]],
-    status: str,
-    reasons: list[str],
+def build_report( value: Mapping[str, Any], baseline_metrics: Mapping[str, Any], candidate_metrics: Mapping[str, Any],
+                  comparison: Any, gates: list[dict[str, Any]], status: str, reasons: list[str],
 ):
-    evaluation_set = value["evaluation_set"]
-    baseline = value["baseline"]
-    candidate = value["candidate"]
+    baseline = value["baseline_match_set"]
+    candidate = value["candidate_match_set"]
+    labels = value["reviewed_label_set"]
+    criteria = value["criteria"]
+    dataset = labels["dataset"]
     failed = [gate["gate_id"] for gate in gates if gate["status"] == "failed"]
     attack_count = baseline_metrics["true_positives"]
     retained = attack_count - len(comparison.lost_attack)
@@ -20,11 +16,13 @@ def build_report(
         "judge_input_id": value["judge_input_id"],
         "task_id": value["task_id"],
         "evaluation_summary": {
-            "evaluation_set_id": evaluation_set["evaluation_set_id"],
-            "evaluation_set_version": evaluation_set["evaluation_set_version"],
-            "total_events": len(evaluation_set["expected_event_ids"]),
-            "baseline_rule_version": baseline["rule"]["rule_version"],
-            "candidate_rule_version": candidate["rule"]["rule_version"],
+            "detection_id": value["detection_id"],
+            "dataset_id": dataset["dataset_id"],
+            "dataset_version": dataset["dataset_version"],
+            "evaluation_set_id": dataset["evaluation_set_id"],
+            "total_events": labels["coverage"]["total_events"],
+            "baseline_rule_version": baseline["rule_version"],
+            "candidate_rule_version": candidate["rule_version"],
         },
         "baseline_metrics": dict(baseline_metrics),
         "candidate_metrics": dict(candidate_metrics),
@@ -45,6 +43,24 @@ def build_report(
             "f1_change": candidate_metrics["f1_score"] - baseline_metrics["f1_score"],
         },
         "mandatory_gates": gates,
-        "decision": {"status": status, "reasons": reasons, "failed_gates": failed},
-        "provenance": dict(value["provenance"]),
+        "decision": {"status": status, "reasons": reasons, "failed_gates": failed, "failures": []},
+        "provenance": {
+            "baseline_match_set_id": baseline["match_set_id"],
+            "candidate_match_set_id": candidate["match_set_id"],
+            "baseline_execution_id": baseline["execution"]["execution_id"],
+            "candidate_execution_id": candidate["execution"]["execution_id"],
+            "candidate_ref": candidate["candidate_ref"],
+            "label_set_id": labels["label_set_id"],
+            "label_set_version": labels["label_set_version"],
+            "criteria": {
+                "minimum_attack_retention": criteria["minimum_attack_retention"],
+                "maximum_new_benign_matches": criteria["maximum_new_benign_matches"],
+            },
+            "contract_versions": {
+                "match_set": baseline["contract_version"],
+                "reviewed_label_set": labels["contract_version"],
+                "judge_input": value["contract_version"],
+            },
+            "versions": dict(value["versions"]),
+        },
     }

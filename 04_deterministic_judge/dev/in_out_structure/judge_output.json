@@ -1,57 +1,63 @@
 {
-  "judge_input_id": "judge-input-001",
+  "contract_version": "0.1.0",
+  "judge_input_id": "judge-input-case_001",
   "task_id": "task-001",
-
   "evaluation_summary": {
+    "detection_id": "det-login-threshold",
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
     "evaluation_set_id": "eval-001",
-    "evaluation_set_version": "1.0",
-    "total_events": 4,
+    "total_events": 10,
     "baseline_rule_version": "v1",
     "candidate_rule_version": "v2"
   },
-
   "baseline_metrics": {
-    "true_positives": 2,
+    "true_positives": 4,
     "false_positives": 2,
-    "true_negatives": 0,
-    "false_negatives": 0,
-    "precision": 0.50,
-    "recall": 1.00,
-    "accuracy": 0.50,
-    "f1_score": 0.67
+    "true_negatives": 3,
+    "false_negatives": 1,
+    "precision": 0.6666666666666666,
+    "recall": 0.8,
+    "accuracy": 0.7,
+    "f1_score": 0.7272727272727272
   },
-
   "candidate_metrics": {
-    "true_positives": 2,
-    "false_positives": 0,
-    "true_negatives": 2,
+    "true_positives": 5,
+    "false_positives": 2,
+    "true_negatives": 3,
     "false_negatives": 0,
-    "precision": 1.00,
-    "recall": 1.00,
-    "accuracy": 1.00,
-    "f1_score": 1.00
+    "precision": 0.7142857142857143,
+    "recall": 1.0,
+    "accuracy": 0.8,
+    "f1_score": 0.8333333333333333
   },
-
   "comparison": {
-    "retained_matches": ["E2", "E4"],
-    "removed_matches": ["E1", "E3"],
-    "added_matches": [],
-
+    "retained_matches": [
+      "E01-01",
+      "E01-02",
+      "E01-04",
+      "E01-06",
+      "E01-07",
+      "E01-08"
+    ],
+    "removed_matches": [],
+    "added_matches": [
+      "E01-10"
+    ],
     "lost_attack_matches": [],
-    "removed_benign_matches": ["E1", "E3"],
-    "new_attack_matches": [],
+    "removed_benign_matches": [],
+    "new_attack_matches": [
+      "E01-10"
+    ],
     "new_benign_matches": [],
-
-    "false_positives_reduced": 2,
+    "false_positives_reduced": 0,
     "attack_detections_lost": 0,
     "attack_retention": 1.0,
-
-    "precision_change": 0.50,
-    "recall_change": 0.00,
-    "accuracy_change": 0.50,
-    "f1_change": 0.33
+    "precision_change": 0.04761904761904767,
+    "recall_change": 0.19999999999999996,
+    "accuracy_change": 0.10000000000000009,
+    "f1_change": 0.10606060606060608
   },
-
   "mandatory_gates": [
     {
       "gate_id": "attack_retention",
@@ -65,37 +71,48 @@
       "status": "passed",
       "expected_maximum": 0,
       "actual": 0,
-      "reason": "No new benign matches were introduced."
+      "reason": "No excessive new benign matches were introduced."
     },
     {
       "gate_id": "evidence_completeness",
       "status": "passed",
-      "reason": "All required reviewed labels and provenance were available."
+      "reason": "Label coverage is complete, every label is reviewed, and every match is labelled."
     },
     {
       "gate_id": "execution_validity",
       "status": "passed",
-      "reason": "Baseline and candidate executions completed on the same evaluation set."
+      "reason": "Baseline and candidate executions completed on the same frozen evaluation set."
     }
   ],
-
   "decision": {
     "status": "PASS",
     "reasons": [
-      "All mandatory gates passed.",
-      "False positives were reduced by 2.",
-      "All required attack detections were retained."
+      "All mandatory gates passed."
     ],
-    "failed_gates": []
+    "failed_gates": [],
+    "failures": []
   },
-
   "provenance": {
-    "red_proposal_id": "red-001",
-    "blue_proposal_id": "blue-001",
+    "baseline_match_set_id": "ms-baseline-001",
+    "candidate_match_set_id": "ms-candidate-001",
     "baseline_execution_id": "exec-baseline-001",
     "candidate_execution_id": "exec-candidate-001",
+    "candidate_ref": "cand-rule-001",
     "label_set_id": "labels-001",
-    "criteria_id": "criteria-001",
-    "criteria_version": "1.0"
+    "label_set_version": "1",
+    "criteria": {
+      "minimum_attack_retention": 1.0,
+      "maximum_new_benign_matches": 0
+    },
+    "contract_versions": {
+      "match_set": "0.1.0",
+      "reviewed_label_set": "0.1.0",
+      "judge_input": "0.1.0"
+    },
+    "versions": {
+      "round_request": "0.1.0",
+      "red_prompt": "dev",
+      "blue_prompt": "dev"
+    }
   }
 }
