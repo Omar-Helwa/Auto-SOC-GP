@@ -247,8 +247,7 @@
         "candidate_ref",
         "label_set_id",
         "label_set_version",
-        "criteria_id",
-        "criteria_version",
+        "criteria",
         "contract_versions"
       ],
       "properties": {
@@ -259,8 +258,16 @@
         "candidate_ref": { "type": "string", "minLength": 1, "description": "candidate_id of the candidate_rule that was judged." },
         "label_set_id": { "type": "string", "minLength": 1 },
         "label_set_version": { "type": "string", "minLength": 1 },
-        "criteria_id": { "type": "string", "minLength": 1 },
-        "criteria_version": { "type": "string", "minLength": 1 },
+        "criteria": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minimum_attack_retention", "maximum_new_benign_matches"],
+          "description": "The frozen thresholds that were applied, copied from the judge input.",
+          "properties": {
+            "minimum_attack_retention": { "$ref": "#/$defs/ratio" },
+            "maximum_new_benign_matches": { "type": "integer", "minimum": 0 }
+          }
+        },
         "contract_versions": {
           "type": "object",
           "additionalProperties": false,

@@ -106,13 +106,7 @@
     },
     "contract_versions": {
       "match_set": "0.1.0",
-      "reviewed_label_set": "0.1.0",
-      "judge_input": "0.1.0"
-    },
-    "versions": {
-      "round_request": "0.1.0",
-      "red_prompt": "dev",
-      "blue_prompt": "dev"
+      "reviewed_label_set": "0.1.0"
     }
   }
 }

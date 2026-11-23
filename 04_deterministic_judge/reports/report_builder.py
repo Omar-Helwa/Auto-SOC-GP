@@ -59,8 +59,6 @@ def build_report( value: Mapping[str, Any], baseline_metrics: Mapping[str, Any],
             "contract_versions": {
                 "match_set": baseline["contract_version"],
                 "reviewed_label_set": labels["contract_version"],
-                "judge_input": value["contract_version"],
             },
-            "versions": dict(value["versions"]),
         },
     }
