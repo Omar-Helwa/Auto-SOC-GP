@@ -1,0 +1,158 @@
+"""Compile bounded blue-proposal edits against a trusted base search."""
+
+from __future__ import annotations
+
+import hashlib
+import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Mapping
+from uuid import uuid4
+
+from .proposals import require_valid_contract
+
+
+_SELECTION_PLACEHOLDER = re.compile(r"\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}")
+_SELECTION_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_FIELD_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+
+
+@dataclass(frozen=True)
+class BaseRule:
+    """Trusted, read-only base SPL with optional named selection fragments.
+
+    ``spl_template`` may reference a selection as ``{{selection_name}}``.
+    Model-proposed edits can only change those fragments or add a filter.
+    """
+
+    task_id: str
+    detection_id: str
+    rule_version: str
+    spl_template: str
+    selections: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        for name in ("task_id", "detection_id", "rule_version"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+        if not isinstance(self.spl_template, str) or not self.spl_template.strip():
+            raise ValueError("spl_template must be a non-empty string")
+        if len(self.spl_template) > 20_000:
+            raise ValueError("spl_template exceeds the 20000 character limit")
+        if any(char in self.spl_template for char in ("|", ";", "`", "\n", "\r")):
+            raise ValueError("base SPL must be a read-only search expression")
+        if not isinstance(self.selections, Mapping):
+            raise ValueError("selections must be a mapping")
+        for name, expression in self.selections.items():
+            if not isinstance(name, str) or not _SELECTION_NAME.fullmatch(name):
+                raise ValueError(f"invalid selection name: {name!r}")
+            if not isinstance(expression, str) or not expression.strip():
+                raise ValueError(f"selection {name!r} must have a non-empty expression")
+            if any(char in expression for char in ("|", ";", "`", "\n", "\r")):
+                raise ValueError(f"selection {name!r} must be a read-only search expression")
+        unknown = set(_SELECTION_PLACEHOLDER.findall(self.spl_template)) - set(
+            self.selections
+        )
+        if unknown:
+            raise ValueError(f"SPL template references unknown selections: {sorted(unknown)}")
+
+
+def compile_candidate_rule(
+    proposal: Mapping[str, Any],
+    base_rule: BaseRule,
+    *,
+    candidate_rule_version: str,
+) -> dict[str, Any]:
+    """Validate and compile a blue proposal into the shared candidate_rule shape."""
+    require_valid_contract(proposal, "blue_proposal")
+    if proposal["task_id"] != base_rule.task_id:
+        raise ValueError("blue proposal task_id does not match the base rule")
+    detection = proposal["detection_under_test"]
+    if detection["detection_id"] != base_rule.detection_id:
+        raise ValueError("blue proposal detection_id does not match the base rule")
+    if detection["rule_version"] != base_rule.rule_version:
+        raise ValueError("blue proposal base rule_version does not match the base rule")
+    if not isinstance(candidate_rule_version, str) or not candidate_rule_version.strip():
+        raise ValueError("candidate_rule_version must be a non-empty string")
+
+    selections = dict(base_rule.selections)
+    exclusions: list[str] = []
+    for edit in proposal["edits"]:
+        predicate = _conditions_to_spl(edit["conditions"])
+        if edit["operation"] == "add_exclusion":
+            exclusions.append(predicate)
+            continue
+
+        selection_name = edit["target_selection"]
+        if selection_name not in selections:
+            raise ValueError(
+                f"narrow_selection target {selection_name!r} is not present in the base rule"
+            )
+        if selection_name not in _SELECTION_PLACEHOLDER.findall(base_rule.spl_template):
+            raise ValueError(
+                f"narrow_selection target {selection_name!r} is not used by the base rule"
+            )
+        selections[selection_name] = f"({selections[selection_name]}) ({predicate})"
+
+    compiled = _SELECTION_PLACEHOLDER.sub(
+        lambda match: selections[match.group(1)], base_rule.spl_template
+    ).strip()
+    if exclusions:
+        compiled = f"({compiled}) NOT ({') NOT ('.join(exclusions)})"
+    if len(compiled) > 20_000:
+        raise ValueError("compiled SPL exceeds the 20000 character limit")
+
+    candidate = {
+        "contract_version": "0.1.0",
+        "candidate_id": str(uuid4()),
+        "task_id": proposal["task_id"],
+        "proposal_id": proposal["proposal_id"],
+        "detection_id": base_rule.detection_id,
+        "base_rule_version": base_rule.rule_version,
+        "candidate_rule_version": candidate_rule_version,
+        "applied_edit_count": len(proposal["edits"]),
+        "compiled_rule": {
+            "language": "splunk_spl",
+            "text": compiled,
+            "sha256": hashlib.sha256(compiled.encode("utf-8")).hexdigest(),
+        },
+        "validation": {
+            "status": "passed",
+            "checks": ["schema", "scope", "compile"],
+            "validated_at": _utc_now(),
+        },
+    }
+    require_valid_contract(candidate, "candidate_rule")
+    return candidate
+
+
+def _conditions_to_spl(conditions: list[Mapping[str, Any]]) -> str:
+    terms: list[str] = []
+    for condition in conditions:
+        field = condition["field"]
+        if not _FIELD_NAME.fullmatch(field):
+            raise ValueError(f"invalid condition field: {field!r}")
+        values = [
+            _value_to_spl(field, condition["modifier"], value)
+            for value in condition["values"]
+        ]
+        terms.append(values[0] if len(values) == 1 else f"({' OR '.join(values)})")
+    return " ".join(terms)
+
+
+def _value_to_spl(field: str, modifier: str, value: str) -> str:
+    if any(ord(char) < 32 or char == "`" for char in value):
+        raise ValueError("condition values cannot contain control characters or backticks")
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    wildcard = {
+        "equals": escaped,
+        "contains": f"*{escaped}*",
+        "startswith": f"{escaped}*",
+        "endswith": f"*{escaped}",
+    }[modifier]
+    return f'{field}="{wildcard}"'
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

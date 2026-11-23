@@ -9,6 +9,7 @@ that the controller connects to the DB and relays data between services.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from ..datastore.repository import MongoRepository
 from ..datastore.schema_registry import REPO_ROOT
 
 RED_EXAMPLES = REPO_ROOT / "00_shared_contracts" / "red_proposal" / "examples"
+BLUE_EXAMPLES = REPO_ROOT / "00_shared_contracts" / "blue_proposal" / "examples"
+CANDIDATE_EXAMPLES = REPO_ROOT / "00_shared_contracts" / "candidate_rule" / "examples"
 
 
 def _load(path: Path) -> dict:
@@ -34,15 +37,51 @@ def main() -> int:
     task_id = "demo-round-0001"
     red_proposal = _load(RED_EXAMPLES / "valid_red_proposal.json")
     red_proposal["task_id"] = task_id  # thread the round id through
+    blue_proposal = _load(BLUE_EXAMPLES / "valid_blue_proposal.json")
+    blue_proposal["task_id"] = task_id
+    candidate_rule = _load(CANDIDATE_EXAMPLES / "valid_candidate_rule.json")
+    candidate_rule.update(
+        task_id=task_id,
+        proposal_id=blue_proposal["proposal_id"],
+        detection_id=blue_proposal["detection_under_test"]["detection_id"],
+    )
+
+    telemetry = {
+        "contract_version": "0.1.0",
+        "evidence_id": f"evidence-{task_id}",
+        "task_id": task_id,
+        "proposal_id": red_proposal["proposal_id"],
+        "detection_id": red_proposal["detection_under_test"]["detection_id"],
+        "source": "splunk",
+        "execution": {
+            "execution_id": f"execution-{task_id}",
+            "status": "succeeded",
+            "operation_id": f"operation-{task_id}",
+            "approval_id": f"approval-{task_id}",
+            "started_at": "2026-01-01T00:00:00Z",
+            "completed_at": "2026-01-01T00:00:01Z",
+            "event_count": 0,
+            "truncated": False,
+        },
+        "events": [],
+    }
+    telemetry["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            telemetry,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
     registry = ServiceRegistry()
     registry.register("red", static_service("red_proposal", lambda _p: red_proposal))
     registry.register("platform_execute", static_service(
-        "telemetry_evidence", lambda _p: {"task_id": task_id, "evidence": "mock-telemetry"}))
-    registry.register("blue", static_service(
-        "blue_proposal", lambda _p: {"task_id": task_id, "edit": "mock-rule-edit"}))
+        "telemetry_evidence", lambda _p: telemetry))
+    registry.register("blue", static_service("blue_proposal", lambda _p: blue_proposal))
     registry.register("platform_compile", static_service(
-        "candidate_rule", lambda _p: {"task_id": task_id, "rule": "mock-candidate"}))
+        "candidate_rule", lambda _p: candidate_rule))
     registry.register("judge", static_service(
         "judge_result", lambda _p: {"task_id": task_id, "decision": "pass"}))
 

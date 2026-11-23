@@ -11,6 +11,8 @@ their mock with a real adapter the same way `build_red_service` does.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -39,17 +41,61 @@ def main() -> int:
     repo.ensure_setup()
 
     task_id = "assembled-real-red-0001"
+    contracts = REPO_ROOT / "00_shared_contracts"
+    blue_proposal = json.loads(
+        (contracts / "blue_proposal" / "examples" / "valid_blue_proposal.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    blue_proposal["task_id"] = task_id
+    candidate_rule = json.loads(
+        (contracts / "candidate_rule" / "examples" / "valid_candidate_rule.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    candidate_rule.update(
+        task_id=task_id,
+        proposal_id=blue_proposal["proposal_id"],
+        detection_id=blue_proposal["detection_under_test"]["detection_id"],
+    )
+    telemetry = {
+        "contract_version": "0.1.0",
+        "evidence_id": f"evidence-{task_id}",
+        "task_id": task_id,
+        "proposal_id": f"mock-proposal-{task_id}",
+        "detection_id": "win-encoded-powershell",
+        "source": "splunk",
+        "execution": {
+            "execution_id": f"execution-{task_id}",
+            "status": "succeeded",
+            "operation_id": f"operation-{task_id}",
+            "approval_id": f"approval-{task_id}",
+            "started_at": "2026-01-01T00:00:00Z",
+            "completed_at": "2026-01-01T00:00:01Z",
+            "event_count": 0,
+            "truncated": False,
+        },
+        "events": [],
+    }
+    telemetry["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            telemetry,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
     registry = ServiceRegistry()
     # REAL Red component (mock model gateway inside; swap for hosted model later).
     registry.register("red", build_red_service())
     # Mock stand-ins for the services not finished yet.
     registry.register("platform_execute", static_service(
-        "telemetry_evidence", lambda _p: {"task_id": task_id, "evidence": "mock-telemetry"}))
-    registry.register("blue", static_service(
-        "blue_proposal", lambda _p: {"task_id": task_id, "edit": "mock-rule-edit"}))
+        "telemetry_evidence", lambda _p: telemetry))
+    registry.register("blue", static_service("blue_proposal", lambda _p: blue_proposal))
     registry.register("platform_compile", static_service(
-        "candidate_rule", lambda _p: {"task_id": task_id, "rule": "mock-candidate"}))
+        "candidate_rule", lambda _p: candidate_rule))
     registry.register("judge", static_service(
         "judge_result", lambda _p: {"task_id": task_id, "decision": "pass"}))
 
