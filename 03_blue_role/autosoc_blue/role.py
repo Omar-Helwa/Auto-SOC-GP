@@ -17,11 +17,19 @@ from .schemas.serializer import build_error_response, error_to_contract
 class BlueRole:
     def __init__(self, engine: BlueEngine | None = None):
         self.engine = engine or build_engine()
+        self.last_edited_rule: dict | None = None  # {"format", "text"} of the last proposal, if renderable
 
     def run(self, blue_input: dict) -> dict:
         task_id = blue_input.get("task_id") if isinstance(blue_input, dict) else None
         try:
-            return self.engine.propose(blue_input)
+            result = self.engine.propose_with_trace(blue_input)
+            self.last_edited_rule = None
+            try:  # a side product for callers that want it; never part of the contract object
+                fmt = "spl" if blue_input["detection"]["rule_format"] == "spl" else "sigma"
+                self.last_edited_rule = result.edited_rule(fmt)
+            except Exception:
+                pass
+            return result.proposal
         except BlueError as exc:
             return error_to_contract(build_error_response(
                 exc.category, exc.message, task_id=task_id, details=exc.details))

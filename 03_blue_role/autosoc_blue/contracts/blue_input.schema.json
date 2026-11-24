@@ -27,8 +27,8 @@
       "properties": {
         "detection_id": { "type": "string", "minLength": 1 },
         "rule_version": { "type": "string", "minLength": 1 },
-        "rule_format": { "type": "string", "enum": ["sigma"] },
-        "rule_text": { "type": "string", "minLength": 1, "maxLength": 20000, "description": "The current rule, as Sigma YAML." },
+        "rule_format": { "type": "string", "enum": ["sigma", "spl"] },
+        "rule_text": { "type": "string", "minLength": 1, "maxLength": 20000, "description": "The current rule: Sigma YAML when rule_format is sigma, a plain Splunk search (SPL subset, see the README) when it is spl." },
         "logic_summary": { "type": "string", "minLength": 1, "maxLength": 1000 },
         "attack_techniques": {
           "type": "array",

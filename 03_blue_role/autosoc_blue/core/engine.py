@@ -21,6 +21,7 @@ from ..schemas.models import BlueInput, BlueProposal
 from ..schemas.serializer import proposal_to_contract
 from .context import BlueContext, build_context
 from .draft import Draft
+from ..spl import SplError
 from .errors import InputError, NoProposalError
 from .normalise import normalise
 from .preflight import PreflightReport, run_preflight
@@ -46,6 +47,27 @@ class BlueResult:
     attempts: list[Attempt]
     proposer_used: str
     notes: list[str] = field(default_factory=list)
+    candidate: object | None = None  # CandidateRule of the accepted proposal (Sigma dict + text)
+
+    def edited_rule(self, fmt: str) -> dict:
+        """The base rule with the accepted edits applied, as {"format", "text"}."""
+        if self.candidate is None:
+            raise InputError("no candidate rule is available to render")
+        if fmt == "sigma":
+            return {"format": "sigma", "text": self.candidate.rule_text}
+        if fmt == "spl":
+            from ..spl import sigma_rule_to_spl
+
+            try:
+                return {"format": "spl", "text": sigma_rule_to_spl(self.candidate.rule)}
+            except SplError as exc:
+                raise InputError(f"the edited rule cannot be rendered as SPL: {exc.message}",
+                                 details={"unsupported": exc.construct}) from exc
+        raise InputError(f"unknown render format {fmt!r} (use 'sigma' or 'spl')")
+
+    def with_edited_rule(self, fmt: str) -> dict:
+        """{"blue_proposal": <contract object, unchanged>, "edited_rule": {...}}."""
+        return {"blue_proposal": self.proposal, "edited_rule": self.edited_rule(fmt)}
 
     def trace(self) -> dict:
         return {"proposer_used": self.proposer_used, "notes": self.notes,
@@ -77,14 +99,24 @@ class BlueEngine:
         self.allow_partial = allow_partial
 
     # ------------------------------------------------------------------ #
-    def propose(self, blue_input: dict) -> dict:
-        """Return a contract-valid blue_proposal, or raise a BlueError."""
-        return self.propose_with_trace(blue_input).proposal
+    def propose(self, blue_input: dict, render: str | None = None) -> dict:
+        """Return a contract-valid blue_proposal, or raise a BlueError.
+
+        With ``render="spl"`` (or ``"sigma"``) return
+        ``{"blue_proposal": <unchanged contract object>, "edited_rule": {"format", "text"}}``.
+        """
+        result = self.propose_with_trace(blue_input)
+        return result.with_edited_rule(render) if render else result.proposal
 
     def propose_with_trace(self, blue_input: dict) -> BlueResult:
         inp = self._parse_input(blue_input)
         try:
             ctx = build_context(inp, self.evidence)
+        except SplError as exc:
+            raise InputError(
+                f"detection.rule_text (SPL) cannot be used: {exc.message}",
+                details={"unsupported_spl": exc.construct, "hint": "Blue reads a plain Splunk search only"},
+            ) from exc
         except Exception as exc:  # unparsable rule text
             raise InputError(f"detection.rule_text cannot be used: {exc}") from exc
 
@@ -98,9 +130,11 @@ class BlueEngine:
         feedback: list[str] = []
         for proposer, number in plan:
             fb = feedback if (number > 1 and proposer.uses_feedback) else []
-            proposal = self._attempt(proposer, number, ctx, fb, attempts)
-            if proposal is not None:
-                return BlueResult(proposal, attempts, attempts[-1].source or proposer.name, list(ctx.notes))
+            outcome = self._attempt(proposer, number, ctx, fb, attempts)
+            if outcome is not None:
+                proposal, candidate = outcome
+                return BlueResult(proposal, attempts, attempts[-1].source or proposer.name,
+                                  list(ctx.notes), candidate)
             if attempts[-1].reasons and proposer is self.proposer:
                 feedback = attempts[-1].reasons
 
@@ -125,7 +159,7 @@ class BlueEngine:
         return BlueInput.from_dict(blue_input)
 
     def _attempt(self, proposer: Proposer, number: int, ctx: BlueContext,
-                 feedback: Sequence[str], attempts: list[Attempt]) -> dict | None:
+                 feedback: Sequence[str], attempts: list[Attempt]):
         try:
             draft = proposer.propose(ctx, feedback)
         except ProposerError as exc:
@@ -147,7 +181,7 @@ class BlueEngine:
             attempts.append(Attempt(proposer.name, number, "rejected", [f"schema: {exc}"], edits, draft.source))
             return None
         attempts.append(Attempt(proposer.name, number, "accepted", [i.message for i in report.issues], edits, draft.source))
-        return proposal
+        return proposal, report.candidate
 
     def _assemble(self, inp: BlueInput, draft: Draft, report: PreflightReport) -> dict:
         addressed = list(draft.addressed_false_positives)

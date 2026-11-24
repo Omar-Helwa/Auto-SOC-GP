@@ -28,7 +28,7 @@ from ..deterministic import DeterministicProposer
 
 MODES = ("normal", "bad_then_good", "always_bad", "malformed", "refusal", "timeout", "unavailable")
 
-_YAML = re.compile(r"```yaml\n(.*?)\n```", re.DOTALL)
+_YAML = re.compile(r"```(?:yaml|spl)\n(.*?)\n```", re.DOTALL)
 _DATA = re.compile(r"<blue_input>\n(.*?)\n</blue_input>", re.DOTALL)
 
 
@@ -53,7 +53,9 @@ def _read_prompt(task: str) -> BlueContext:
         "edit_constraints": data["edit_constraints"],
     }
     inp = BlueInput.from_dict(raw)
-    return BlueContext(input=inp, rule=parse_rule(rule_text))
+    from ...core.context import build_context
+
+    return build_context(inp)
 
 
 def _draft_to_json(draft) -> str:

@@ -1,11 +1,11 @@
 Detection under test: {{detection_id}} (rule version {{rule_version}})
 What it does: {{logic_summary}}
 
-Current Sigma rule:
-```yaml
+Current {{rule_label}}:
+```{{rule_lang}}
 {{rule_text}}
 ```
-Existing selections you may narrow: {{selections}}
+{{normalised_block}}Existing selections you may narrow: {{selections}}
 
 Constraints (from edit_constraints):
 - allowed_operations: {{allowed_operations}}

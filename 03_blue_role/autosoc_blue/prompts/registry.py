@@ -75,7 +75,21 @@ def render(version: str, ctx: BlueContext, feedback: list[str] | None = None) ->
         "false_positives": [_case(x) for x in inp.false_positives],
         "must_detect": [_case(x) for x in inp.must_detect],
     }
+    is_spl = inp.detection.rule_format == "spl"
+    if is_spl:
+        from ..spl import describe_conditions
+
+        normalised = (
+            "\nNormalised field conditions (what the selections below contain; your edits use the same "
+            "structured form, field / modifier / values, never SPL text):\n"
+            + describe_conditions(ctx.rule) + "\n\n"
+        )
+    else:
+        normalised = ""
     task = _fill(template, {
+        "rule_label": "Splunk search (SPL)" if is_spl else "Sigma rule",
+        "rule_lang": "spl" if is_spl else "yaml",
+        "normalised_block": normalised,
         "detection_id": inp.detection.detection_id,
         "rule_version": inp.detection.rule_version,
         "logic_summary": inp.detection.logic_summary,
