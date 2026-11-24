@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autosoc-blue"
+version = "0.1.0"
+description = "AutoSOC Blue role: propose small, safe edits to a Sigma detection rule."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "jsonschema>=4.21",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+http = ["fastapi>=0.110", "uvicorn>=0.27"]
+anthropic = ["anthropic>=0.40"]
+openai = ["openai>=1.30"]
+dev = ["pytest>=8.0", "httpx>=0.27", "fastapi>=0.110", "uvicorn>=0.27"]
+
+[project.scripts]
+autosoc-blue = "autosoc_blue.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["autosoc_blue*"]
+
+[tool.setuptools.package-data]
+autosoc_blue = ["contracts/*.json", "prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["dev/tests"]
