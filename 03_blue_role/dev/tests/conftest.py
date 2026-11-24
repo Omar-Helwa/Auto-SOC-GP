@@ -49,3 +49,25 @@ def example():
         return copy.deepcopy(_strip_helper_keys(_load_json(path)))
 
     return _get
+
+
+FIXTURE_INPUTS = COMPONENT_ROOT / "dev" / "fixtures" / "inputs"
+
+
+@pytest.fixture
+def fixture_input():
+    """fixture_input('single_fp') -> a fresh blue_input dict from dev/fixtures/inputs."""
+
+    def _get(name: str):
+        return copy.deepcopy(_load_json(FIXTURE_INPUTS / f"{name}.json"))
+
+    return _get
+
+
+@pytest.fixture
+def gateway_env(monkeypatch):
+    """Start from a clean environment for the model settings."""
+    for var in ("BLUE_MODEL_PROVIDER", "BLUE_MODEL_ID", "BLUE_MOCK_MODE", "BLUE_ALLOW_PARTIAL",
+                "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    return monkeypatch

@@ -1,0 +1,68 @@
+{
+  "contract_version": "0.1.0",
+  "task_id": "fixture-inseparable",
+  "prompt_version": "blue-system@0.1.0",
+  "output_contract_version": "0.1.0",
+  "detection": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0",
+    "rule_format": "sigma",
+    "rule_text": "title: Encoded PowerShell Command Line\nid: win-encoded-powershell\nstatus: test\ndescription: Detects PowerShell started with an encoded command (fixture rule for blue tests).\nlogsource:\n  category: process_creation\n  product: windows\ndetection:\n  selection_img:\n    Image|endswith:\n      - '\\powershell.exe'\n      - '\\pwsh.exe'\n  selection_cli:\n    CommandLine|contains:\n      - ' -enc '\n      - ' -EncodedCommand '\n  condition: selection_img and selection_cli\nlevel: medium\ntags:\n  - attack.execution\n  - attack.t1059.001\n",
+    "logic_summary": "PowerShell or pwsh process whose command line contains -enc or -EncodedCommand.",
+    "attack_techniques": [
+      "T1059.001"
+    ]
+  },
+  "false_positives": [
+    {
+      "evidence_reference": {
+        "evidence_id": "ev-2026-11-10-fp-inventory-01",
+        "evidence_type": "reviewed_label",
+        "provenance_ref": "platform/evidence_store/ev-2026-11-10-fp-inventory-01"
+      },
+      "observed_fields": {
+        "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "CommandLine": "powershell.exe -w hidden -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoA",
+        "User": "CORP\\alice"
+      },
+      "label_note": "Sanctioned daily asset inventory task (IT ticket INV-114)."
+    }
+  ],
+  "must_detect": [
+    {
+      "evidence_reference": {
+        "evidence_id": "ev-atomic-t1059.001-office",
+        "evidence_type": "reviewed_label"
+      },
+      "observed_fields": {
+        "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "CommandLine": "powershell.exe -w hidden -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoA",
+        "User": "CORP\\mallory"
+      },
+      "label_note": "Atomic Red Team T1059.001: macro launches encoded PowerShell."
+    }
+  ],
+  "edit_constraints": {
+    "allowed_operations": [
+      "add_exclusion",
+      "narrow_selection"
+    ],
+    "allowed_fields": [
+      "Image",
+      "CommandLine"
+    ],
+    "attacker_controllable_fields": [
+      "CommandLine",
+      "ParentCommandLine"
+    ],
+    "max_edits": 2
+  },
+  "prior_blue_edits": [
+    {
+      "proposal_id": "b-0001",
+      "decision": "rejected",
+      "summary": "Excluded every CommandLine containing 'Get-CimInstance'.",
+      "failure_reason": "Relied on an attacker-controllable field only; trivially evadable."
+    }
+  ]
+}
