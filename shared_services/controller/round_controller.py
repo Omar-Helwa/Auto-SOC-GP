@@ -19,6 +19,7 @@ ServiceRegistry; the controller itself does not change.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Callable
 
 from ..datastore.repository import MongoRepository
@@ -35,14 +36,22 @@ class RoundStep:
 
 
 def _red_input_from_context(ctx: dict) -> dict:
-    """Best-effort map of a round_request into a red_input-shaped payload."""
+    """Map a contract-valid round_request into a red_input payload.
+
+    Red receives the detection's description, never its executable rule text.
+    """
     rr = ctx.get("round_request", {})
+    detection = rr.get("detection", {})
     red_input = {
         "contract_version": "0.1.0",
         "task_id": ctx.get("task_id"),
-        "detection": rr.get("detection", {}),
+        "detection": {
+            key: detection[key]
+            for key in ("detection_id", "rule_version", "description", "logic_summary")
+            if key in detection
+        },
         "benign_constraints": rr.get("benign_constraints", {}),
-        "prompt_version": rr.get("prompt_version", "red-system@0.1.0"),
+        "prompt_version": rr.get("versions", {}).get("red_prompt", "red-system@0.1.0"),
         "output_contract_version": "0.1.0",
     }
     if "permitted_evidence_refs" in rr:
@@ -57,9 +66,12 @@ def _passthrough_task(ctx: dict) -> dict:
 def default_round_steps() -> list[RoundStep]:
     return [
         RoundStep("red", _red_input_from_context, "Red proposes a benign workflow"),
-        RoundStep("platform_execute", _passthrough_task, "Platform runs it -> evidence"),
+        RoundStep("platform_execute", _passthrough_task, "Platform runs it -> telemetry evidence"),
+        RoundStep("platform_labels", _passthrough_task, "Platform supplies reviewed labels"),
+        RoundStep("platform_baseline", _passthrough_task, "Platform supplies baseline matches"),
         RoundStep("blue", _passthrough_task, "Blue proposes a rule edit"),
         RoundStep("platform_compile", _passthrough_task, "Platform compiles the candidate"),
+        RoundStep("platform_candidate_matches", _passthrough_task, "Platform supplies candidate matches"),
         RoundStep("judge", _passthrough_task, "Judge compares matches"),
     ]
 
@@ -90,6 +102,7 @@ class RoundController:
 
         ctx: dict = {"task_id": task_id, "round_request": round_request, "results": {}}
         stored: dict[str, str] = {}
+        artifact_refs: dict[str, str] = {}
         outcome = "completed"
         reason = ""
 
@@ -102,22 +115,56 @@ class RoundController:
             result: ServiceResult = self.registry.get(step.role).handle(payload)
 
             # Persist the service's output in its contract collection.
-            self.repo.save(result.contract, result.payload)
+            inserted_id = self.repo.save(result.contract, result.payload)
             ctx["results"][step.role] = result
             stored[step.role] = result.contract
+            artifact_name = result.contract
+            if result.contract == "match_set":
+                artifact_name = f"{result.payload['role']}_match_set"
+            artifact_refs[artifact_name] = f"mongo://{result.contract}/{inserted_id}"
 
             if result.contract == ERROR_CONTRACT:
                 outcome, reason = "inconclusive", f"role '{step.role}' returned an error_response"
                 break
 
-        feedback = {
-            "task_id": task_id,
-            "outcome": outcome,
-            "reason": reason,
-            "stored_contracts": stored,
-            "round_request_task_id": task_id,
-        }
-        feedback_id = self.repo.save("feedback_record", feedback)
+        feedback_id = ""
+        if outcome == "completed":
+            required_refs = {
+                "red_proposal",
+                "telemetry_evidence",
+                "reviewed_label_set",
+                "blue_proposal",
+                "candidate_rule",
+                "baseline_match_set",
+                "candidate_match_set",
+                "judge_result",
+            }
+            missing_refs = sorted(required_refs - set(artifact_refs))
+            if missing_refs:
+                outcome = "inconclusive"
+                reason = f"cannot create feedback_record; missing artifact references: {missing_refs}"
+            else:
+                judge_result = ctx["results"]["judge"].payload
+                versions = dict(round_request["versions"])
+                versions.update(
+                    {
+                        "rule_version": round_request["detection"]["rule_version"],
+                        "dataset_version": round_request["dataset"]["dataset_version"],
+                        "evaluation_set_id": round_request["dataset"]["evaluation_set_id"],
+                        "criteria_version": round_request["criteria"]["criteria_version"],
+                    }
+                )
+                feedback = {
+                    "contract_version": "0.1.0",
+                    "task_id": task_id,
+                    "round_id": task_id,
+                    "decision": judge_result["decision"],
+                    "artifact_refs": {name: artifact_refs[name] for name in sorted(required_refs)},
+                    "versions": versions,
+                    "judge_result": judge_result,
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                }
+                feedback_id = self.repo.save("feedback_record", feedback)
 
         return RoundOutcome(
             task_id=task_id,

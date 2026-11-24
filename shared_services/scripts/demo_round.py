@@ -1,8 +1,7 @@
 """Run one mock Architecture 1 round end-to-end into MongoDB.
 
-Uses the real red_proposal / error_response schemas for validation and mock
-services (loaded from the contract example files) for every role. Demonstrates
-that the controller connects to the DB and relays data between services.
+Uses contract examples and mock services for every role. Demonstrates that the
+controller relays and persists a complete round.
 
     python -m shared_services.scripts.demo_round
 """
@@ -19,39 +18,21 @@ from ..controller.services import ServiceRegistry, static_service
 from ..datastore.repository import MongoRepository
 from ..datastore.schema_registry import REPO_ROOT
 
-RED_EXAMPLES = REPO_ROOT / "00_shared_contracts" / "red_proposal" / "examples"
-BLUE_EXAMPLES = REPO_ROOT / "00_shared_contracts" / "blue_proposal" / "examples"
-CANDIDATE_EXAMPLES = REPO_ROOT / "00_shared_contracts" / "candidate_rule" / "examples"
+SHARED = REPO_ROOT / "00_shared_contracts"
 
 
 def _load(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
-    return {k: v for k, v in data.items() if not k.startswith("_")}
+    return {key: value for key, value in data.items() if not key.startswith("_")}
 
 
-def main() -> int:
-    repo = MongoRepository()
-    repo.ping()
-    repo.ensure_setup()
-
-    task_id = "demo-round-0001"
-    red_proposal = _load(RED_EXAMPLES / "valid_red_proposal.json")
-    red_proposal["task_id"] = task_id  # thread the round id through
-    blue_proposal = _load(BLUE_EXAMPLES / "valid_blue_proposal.json")
-    blue_proposal["task_id"] = task_id
-    candidate_rule = _load(CANDIDATE_EXAMPLES / "valid_candidate_rule.json")
-    candidate_rule.update(
-        task_id=task_id,
-        proposal_id=blue_proposal["proposal_id"],
-        detection_id=blue_proposal["detection_under_test"]["detection_id"],
-    )
-
+def _telemetry_evidence(task_id: str, proposal_id: str, detection_id: str) -> dict:
     telemetry = {
         "contract_version": "0.1.0",
         "evidence_id": f"evidence-{task_id}",
         "task_id": task_id,
-        "proposal_id": red_proposal["proposal_id"],
-        "detection_id": red_proposal["detection_under_test"]["detection_id"],
+        "proposal_id": proposal_id,
+        "detection_id": detection_id,
         "source": "splunk",
         "execution": {
             "execution_id": f"execution-{task_id}",
@@ -74,42 +55,144 @@ def main() -> int:
             allow_nan=False,
         ).encode("utf-8")
     ).hexdigest()
+    return telemetry
+
+
+def main() -> int:
+    repo = MongoRepository()
+    repo.ping()
+    repo.ensure_setup()
+
+    task_id = "demo-round-0001"
+    round_request = _load(
+        SHARED / "round_request" / "examples" / "valid_round_request.json"
+    )
+    round_request["task_id"] = task_id
+
+    red_proposal = _load(
+        SHARED / "red_proposal" / "examples" / "valid_red_proposal.json"
+    )
+    red_proposal["task_id"] = task_id
+
+    blue_proposal = _load(
+        SHARED / "blue_proposal" / "examples" / "valid_blue_proposal.json"
+    )
+    blue_proposal["task_id"] = task_id
+
+    detection = round_request["detection"]
+    dataset = round_request["dataset"]
+    candidate_rule = _load(
+        SHARED / "candidate_rule" / "examples" / "valid_candidate_rule.json"
+    )
+    candidate_rule.update(
+        task_id=task_id,
+        proposal_id=blue_proposal["proposal_id"],
+        detection_id=detection["detection_id"],
+    )
+
+    telemetry = _telemetry_evidence(
+        task_id,
+        red_proposal["proposal_id"],
+        red_proposal["detection_under_test"]["detection_id"],
+    )
+    labels = _load(
+        SHARED / "telemetry_evidence" / "examples" / "valid_reviewed_label_set.json"
+    )
+
+    baseline = _load(
+        SHARED / "candidate_rule" / "examples" / "valid_match_set.json"
+    )
+    baseline.update(
+        match_set_id=f"ms-baseline-{task_id}",
+        task_id=task_id,
+        role="baseline",
+        detection_id=detection["detection_id"],
+        rule_version=detection["rule_version"],
+    )
+    baseline["dataset"].update(dataset)
+    baseline["execution"]["execution_id"] = f"exec-baseline-{task_id}"
+    baseline.pop("candidate_ref", None)
+
+    candidate_matches = _load(
+        SHARED / "candidate_rule" / "examples" / "valid_match_set.json"
+    )
+    candidate_matches.update(
+        match_set_id=f"ms-candidate-{task_id}",
+        task_id=task_id,
+        role="candidate",
+        detection_id=detection["detection_id"],
+        rule_version=candidate_rule["candidate_rule_version"],
+        candidate_ref=candidate_rule["candidate_id"],
+    )
+    candidate_matches["dataset"].update(dataset)
+    candidate_matches["execution"]["execution_id"] = f"exec-candidate-{task_id}"
+
+    judge_result = _load(
+        SHARED / "judge_result" / "examples" / "valid_judge_result_pass.json"
+    )
+    judge_result["task_id"] = task_id
+    judge_result["evaluation_summary"].update(
+        detection_id=detection["detection_id"],
+        dataset_id=dataset["dataset_id"],
+        dataset_version=dataset["dataset_version"],
+        evaluation_set_id=dataset["evaluation_set_id"],
+        total_events=labels["coverage"]["total_events"],
+        baseline_rule_version=detection["rule_version"],
+        candidate_rule_version=candidate_rule["candidate_rule_version"],
+    )
+    judge_result["provenance"].update(
+        baseline_match_set_id=baseline["match_set_id"],
+        candidate_match_set_id=candidate_matches["match_set_id"],
+        baseline_execution_id=baseline["execution"]["execution_id"],
+        candidate_execution_id=candidate_matches["execution"]["execution_id"],
+        candidate_ref=candidate_rule["candidate_id"],
+        label_set_id=labels["label_set_id"],
+        label_set_version=labels["label_set_version"],
+    )
 
     registry = ServiceRegistry()
-    registry.register("red", static_service("red_proposal", lambda _p: red_proposal))
-    registry.register("platform_execute", static_service(
-        "telemetry_evidence", lambda _p: telemetry))
-    registry.register("blue", static_service("blue_proposal", lambda _p: blue_proposal))
-    registry.register("platform_compile", static_service(
-        "candidate_rule", lambda _p: candidate_rule))
-    registry.register("judge", static_service(
-        "judge_result", lambda _p: {"task_id": task_id, "decision": "pass"}))
+    registry.register("red", static_service("red_proposal", red_proposal))
+    registry.register(
+        "platform_execute", static_service("telemetry_evidence", telemetry)
+    )
+    registry.register(
+        "platform_labels", static_service("reviewed_label_set", labels)
+    )
+    registry.register("platform_baseline", static_service("match_set", baseline))
+    registry.register("blue", static_service("blue_proposal", blue_proposal))
+    registry.register(
+        "platform_compile", static_service("candidate_rule", candidate_rule)
+    )
+    registry.register(
+        "platform_candidate_matches",
+        static_service("match_set", candidate_matches),
+    )
+    registry.register("judge", static_service("judge_result", judge_result))
 
-    round_request = {
-        "task_id": task_id,
-        "detection": {"detection_id": "win-encoded-powershell", "rule_version": "3.2.0",
-                      "logic_summary": "Alerts on powershell -EncodedCommand."},
-        "benign_constraints": {
-            "allowed_scenario_families": ["admin_automation"],
-            "max_workflow_steps": 5,
-            "allowed_actions": ["scheduled_task", "script_execution"],
-        },
-        "prompt_version": "red-system@0.1.0",
-    }
-
-    controller = RoundController(repo, registry)
-    outcome = controller.run_round(round_request)
+    outcome = RoundController(repo, registry).run_round(round_request)
 
     print(f"Database: {DB_NAME}")
     print(f"Round {outcome.task_id}: {outcome.outcome} ({outcome.reason or 'all steps ran'})")
     print("Stored this round:")
     for role, contract in outcome.stored.items():
-        print(f"  - {role:18} -> {contract}")
-    print(f"  - feedback_record    -> id {outcome.feedback_id}")
+        print(f"  - {role:26} -> {contract}")
+    print(f"  - feedback_record          -> id {outcome.feedback_id}")
     print("\nDocument counts for this task_id:")
-    for contract in ("round_request", "red_proposal", "telemetry_evidence",
-                     "blue_proposal", "candidate_rule", "judge_result", "feedback_record"):
-        print(f"  {contract:20} {repo.count(contract, {'task_id': task_id})}")
+    for contract in (
+        "round_request",
+        "red_proposal",
+        "telemetry_evidence",
+        "reviewed_label_set",
+        "blue_proposal",
+        "candidate_rule",
+        "match_set",
+        "judge_result",
+        "feedback_record",
+    ):
+        query = {"task_id": task_id}
+        if contract == "reviewed_label_set":
+            query = {"label_set_id": labels["label_set_id"]}
+        print(f"  {contract:24} {repo.count(contract, query)}")
     repo.close()
     return 0
 

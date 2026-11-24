@@ -12,12 +12,28 @@ The forward path mirrors the eight-step round flow:
     8  COMPLETED            feedback record stored, round closed
 
 Any non-terminal state may exit to FAILED or INCONCLUSIVE.
+
+Each state also names the contract messages a round must reference when it
+enters that state (``REQUIRED_ARTIFACTS``) and the ones it may reference
+(``ALLOWED_ARTIFACTS``).
 """
 
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, FrozenSet, List
+from typing import Dict, FrozenSet, List, Tuple
+
+from .contracts import (
+    BASELINE_MATCH_SET,
+    BLUE_PROPOSAL,
+    CANDIDATE_MATCH_SET,
+    CANDIDATE_RULE,
+    FEEDBACK_RECORD,
+    JUDGE_RESULT,
+    RED_PROPOSAL,
+    REVIEWED_LABEL_SET,
+    TELEMETRY_EVIDENCE,
+)
 
 
 class RoundState(str, Enum):
@@ -59,6 +75,31 @@ STEP_NUMBER: Dict[RoundState, int] = {
     RoundState.CANDIDATE_EXECUTED: 6,
     RoundState.JUDGED: 7,
     RoundState.COMPLETED: 8,
+}
+
+# Contract messages that must be referenced when entering a state.
+REQUIRED_ARTIFACTS: Dict[RoundState, Tuple[str, ...]] = {
+    RoundState.RED_PROPOSED: (RED_PROPOSAL,),
+    RoundState.TELEMETRY_COLLECTED: (),
+    RoundState.EVIDENCE_VERIFIED: (TELEMETRY_EVIDENCE,),
+    RoundState.BLUE_PROPOSED: (BLUE_PROPOSAL,),
+    RoundState.CANDIDATE_EXECUTED: (CANDIDATE_RULE, CANDIDATE_MATCH_SET),
+    RoundState.JUDGED: (JUDGE_RESULT,),
+    RoundState.COMPLETED: (FEEDBACK_RECORD,),
+}
+
+# Optional extras. The baseline match set and the label set may arrive with the
+# evidence or with the candidate run; the team has not fixed which (see the
+# open points on the shared contracts).
+_OPTIONAL_ARTIFACTS: Dict[RoundState, Tuple[str, ...]] = {
+    RoundState.EVIDENCE_VERIFIED: (REVIEWED_LABEL_SET, BASELINE_MATCH_SET),
+    RoundState.CANDIDATE_EXECUTED: (BASELINE_MATCH_SET,),
+    RoundState.INCONCLUSIVE: (FEEDBACK_RECORD,),
+}
+
+ALLOWED_ARTIFACTS: Dict[RoundState, FrozenSet[str]] = {
+    state: frozenset(REQUIRED_ARTIFACTS.get(state, ()) + _OPTIONAL_ARTIFACTS.get(state, ()))
+    for state in RoundState
 }
 
 

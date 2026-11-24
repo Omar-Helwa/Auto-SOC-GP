@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/feedback_record/0.1.0",
+  "title": "FeedbackRecord",
+  "description": "Immutable Orchestrator audit record for a round evaluated by the deterministic Judge. Embeds the canonical Judge result unchanged, with its decision, pinned versions, and stable references to the exact artifacts used. It records feedback; it does not itself update prompts, criteria, or detections.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "task_id",
+    "round_id",
+    "decision",
+    "artifact_refs",
+    "versions",
+    "judge_result",
+    "recorded_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Task identifier from round_request. It is also the round id."
+    },
+    "round_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Orchestrator round identifier; must equal task_id."
+    },
+    "decision": {
+      "$ref": "autosoc://contracts/judge_result/0.1.0#/$defs/decision",
+      "description": "Exact copy of judge_result.decision, including status, reasons, failed gates, and machine-readable failures."
+    },
+    "artifact_refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red_proposal",
+        "telemetry_evidence",
+        "reviewed_label_set",
+        "blue_proposal",
+        "candidate_rule",
+        "baseline_match_set",
+        "candidate_match_set",
+        "judge_result"
+      ],
+      "properties": {
+        "red_proposal": { "$ref": "#/$defs/artifact_ref" },
+        "telemetry_evidence": { "$ref": "#/$defs/artifact_ref" },
+        "reviewed_label_set": { "$ref": "#/$defs/artifact_ref" },
+        "blue_proposal": { "$ref": "#/$defs/artifact_ref" },
+        "candidate_rule": { "$ref": "#/$defs/artifact_ref" },
+        "baseline_match_set": { "$ref": "#/$defs/artifact_ref" },
+        "candidate_match_set": { "$ref": "#/$defs/artifact_ref" },
+        "judge_result": { "$ref": "#/$defs/artifact_ref" }
+      },
+      "description": "Stable references to the exact persisted contract documents used in this round. References are opaque to consumers; resolve them through the owning artifact store."
+    },
+    "versions": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "minLength": 1 },
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "description": "Pinned reproducibility versions copied from the frozen round configuration, including contract, prompts, model, rule, dataset/evaluation set, and criteria versions."
+    },
+    "judge_result": {
+      "$ref": "autosoc://contracts/judge_result/0.1.0",
+      "description": "Complete canonical Judge result, embedded unchanged for audit and convenience. The artifact reference points to its persisted source document."
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp at which the feedback record was assembled."
+    }
+  },
+  "$defs": {
+    "artifact_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Immutable datastore/evidence-store reference returned when the artifact was persisted (for example, a URI or opaque database identifier)."
+    }
+  }
+}

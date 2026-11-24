@@ -1,0 +1,31 @@
+{
+  "scenario": "reject",
+  "terminal_state": "completed",
+  "outcome": "reject",
+  "attempt_outcomes": {
+    "red_proposed": [
+      "succeeded"
+    ],
+    "telemetry_collected": [
+      "succeeded"
+    ],
+    "evidence_verified": [
+      "succeeded"
+    ],
+    "blue_proposed": [
+      "succeeded"
+    ],
+    "candidate_executed": [
+      "succeeded"
+    ],
+    "judged": [
+      "succeeded"
+    ]
+  },
+  "required_storage": [
+    "round_record",
+    "audit_records",
+    "feedback_record",
+    "referenced_contract_artifacts"
+  ]
+}
