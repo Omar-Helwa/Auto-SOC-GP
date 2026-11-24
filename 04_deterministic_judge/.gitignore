@@ -1,3 +1,4 @@
 dev/temp_outputs/*.json
 __pycache__/
 **/__pycache__/
+outputs/

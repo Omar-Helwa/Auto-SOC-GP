@@ -1,0 +1,79 @@
+{
+  "contract_version": "0.1.0",
+  "match_set_id": "ms-candidate-004",
+  "task_id": "task-004",
+  "role": "candidate",
+  "detection_id": "det-login-threshold",
+  "rule_version": "v2",
+  "candidate_ref": "cand-rule-004",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "eval-004",
+    "evaluation_set_checksum": "7a302caddbad36ad84fe8425b5cf865996029c88d09ad7a8137058bc279c1f6a"
+  },
+  "execution": {
+    "execution_id": "exec-candidate-004",
+    "status": "partial",
+    "search_ref": "splunk-job-candidate-001",
+    "events_scanned": 10,
+    "errors": [
+      "search job timed out after 3 of 10 buckets"
+    ]
+  },
+  "matches": [
+    {
+      "event_id": "E04-01",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:01Z",
+      "splunk_ref": "lab_eval:E04-01"
+    },
+    {
+      "event_id": "E04-02",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:02Z",
+      "splunk_ref": "lab_eval:E04-02"
+    },
+    {
+      "event_id": "E04-04",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:03Z",
+      "splunk_ref": "lab_eval:E04-04"
+    },
+    {
+      "event_id": "E04-06",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:04Z",
+      "splunk_ref": "lab_eval:E04-06"
+    },
+    {
+      "event_id": "E04-07",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:05Z",
+      "splunk_ref": "lab_eval:E04-07"
+    },
+    {
+      "event_id": "E04-08",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:06Z",
+      "splunk_ref": "lab_eval:E04-08"
+    },
+    {
+      "event_id": "E04-10",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:07Z",
+      "splunk_ref": "lab_eval:E04-10"
+    }
+  ],
+  "evidence_reference": {
+    "evidence_id": "evidence-candidate-001",
+    "evidence_type": "splunk_result"
+  }
+}

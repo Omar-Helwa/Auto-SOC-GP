@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/judge_result/0.1.0",
+  "title": "JudgeResult",
+  "description": "Deterministic decision of the Judge (Member 4) for one round. PASS and REJECT carry the full evaluation (metrics, exact match differences, gates, provenance). INCONCLUSIVE is returned whenever inputs are invalid or evidence is incomplete; it carries the machine-readable failures instead of metrics. Produced without any model call.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "judge_input_id",
+    "task_id",
+    "decision"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "const": "0.1.0"
+    },
+    "judge_input_id": {
+      "type": ["string", "null"],
+      "description": "Null only when the input was so malformed that no id could be read (INCONCLUSIVE)."
+    },
+    "task_id": {
+      "type": ["string", "null"],
+      "description": "Round/task identifier taken from the match sets. Null only for unreadable input (INCONCLUSIVE)."
+    },
+    "evaluation_summary": { "$ref": "#/$defs/evaluation_summary" },
+    "baseline_metrics": { "$ref": "#/$defs/metrics" },
+    "candidate_metrics": { "$ref": "#/$defs/metrics" },
+    "comparison": { "$ref": "#/$defs/comparison" },
+    "mandatory_gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/gate" }
+    },
+    "decision": { "$ref": "#/$defs/decision" },
+    "provenance": { "$ref": "#/$defs/provenance" }
+  },
+  "oneOf": [
+    {
+      "title": "Evaluated (PASS or REJECT)",
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": true,
+        "judge_input_id": { "type": "string", "minLength": 1 },
+        "task_id": { "type": "string", "minLength": 1 },
+        "evaluation_summary": true,
+        "baseline_metrics": true,
+        "candidate_metrics": true,
+        "comparison": true,
+        "mandatory_gates": true,
+        "decision": {
+          "properties": {
+            "status": { "enum": ["PASS", "REJECT"] },
+            "failures": { "maxItems": 0 }
+          }
+        },
+        "provenance": true
+      },
+      "required": [
+        "evaluation_summary",
+        "baseline_metrics",
+        "candidate_metrics",
+        "comparison",
+        "mandatory_gates",
+        "provenance"
+      ]
+    },
+    {
+      "title": "Not evaluated (INCONCLUSIVE)",
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": true,
+        "judge_input_id": true,
+        "task_id": true,
+        "decision": {
+          "properties": {
+            "status": { "const": "INCONCLUSIVE" },
+            "failed_gates": { "maxItems": 0 },
+            "failures": { "minItems": 1 }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+    "delta": { "type": "number", "minimum": -1, "maximum": 1 },
+    "event_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Sorted event_id values, same identity space as match_set and reviewed_label_set."
+    },
+    "evaluation_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detection_id",
+        "dataset_id",
+        "dataset_version",
+        "evaluation_set_id",
+        "total_events",
+        "baseline_rule_version",
+        "candidate_rule_version"
+      ],
+      "properties": {
+        "detection_id": { "type": "string", "minLength": 1 },
+        "dataset_id": { "type": "string", "minLength": 1 },
+        "dataset_version": { "type": "string", "minLength": 1 },
+        "evaluation_set_id": { "type": "string", "minLength": 1 },
+        "total_events": { "type": "integer", "minimum": 0 },
+        "baseline_rule_version": { "type": "string", "minLength": 1 },
+        "candidate_rule_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "true_positives",
+        "false_positives",
+        "true_negatives",
+        "false_negatives",
+        "precision",
+        "recall",
+        "accuracy",
+        "f1_score"
+      ],
+      "properties": {
+        "true_positives": { "type": "integer", "minimum": 0 },
+        "false_positives": { "type": "integer", "minimum": 0 },
+        "true_negatives": { "type": "integer", "minimum": 0 },
+        "false_negatives": { "type": "integer", "minimum": 0 },
+        "precision": { "$ref": "#/$defs/ratio" },
+        "recall": { "$ref": "#/$defs/ratio" },
+        "accuracy": { "$ref": "#/$defs/ratio" },
+        "f1_score": { "$ref": "#/$defs/ratio" }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retained_matches",
+        "removed_matches",
+        "added_matches",
+        "lost_attack_matches",
+        "removed_benign_matches",
+        "new_attack_matches",
+        "new_benign_matches",
+        "false_positives_reduced",
+        "attack_detections_lost",
+        "attack_retention",
+        "precision_change",
+        "recall_change",
+        "accuracy_change",
+        "f1_change"
+      ],
+      "properties": {
+        "retained_matches": { "$ref": "#/$defs/event_ids", "description": "In both baseline and candidate." },
+        "removed_matches": { "$ref": "#/$defs/event_ids", "description": "In baseline only." },
+        "added_matches": { "$ref": "#/$defs/event_ids", "description": "In candidate only." },
+        "lost_attack_matches": { "$ref": "#/$defs/event_ids", "description": "Removed matches labelled attack." },
+        "removed_benign_matches": { "$ref": "#/$defs/event_ids", "description": "Removed matches labelled benign." },
+        "new_attack_matches": { "$ref": "#/$defs/event_ids", "description": "Added matches labelled attack." },
+        "new_benign_matches": { "$ref": "#/$defs/event_ids", "description": "Added matches labelled benign." },
+        "false_positives_reduced": { "type": "integer", "description": "Baseline FP minus candidate FP; negative means more false positives." },
+        "attack_detections_lost": { "type": "integer", "minimum": 0 },
+        "attack_retention": { "$ref": "#/$defs/ratio" },
+        "precision_change": { "$ref": "#/$defs/delta" },
+        "recall_change": { "$ref": "#/$defs/delta" },
+        "accuracy_change": { "$ref": "#/$defs/delta" },
+        "f1_change": { "$ref": "#/$defs/delta" }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate_id", "status", "reason"],
+      "properties": {
+        "gate_id": {
+          "type": "string",
+          "enum": ["attack_retention", "new_benign_matches", "evidence_completeness", "execution_validity"]
+        },
+        "status": { "type": "string", "enum": ["passed", "failed"] },
+        "expected": { "type": "number", "description": "Minimum required value (attack_retention)." },
+        "expected_maximum": { "type": "integer", "minimum": 0, "description": "Maximum allowed value (new_benign_matches)." },
+        "actual": { "type": "number" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "kind", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Rule id from validation_rules.json (MS-1, LS-1, LS-2, LS-3, X-1, X-2, X-4, X-5, X-6) or a judge code (SCHEMA, INPUT, CRITERIA).",
+          "pattern": "^(SCHEMA|INPUT|CRITERIA|MS-\\d+|LS-\\d+|X-\\d+)$"
+        },
+        "kind": { "type": "string", "enum": ["invalid", "incomplete"] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasons", "failed_gates", "failures"],
+      "properties": {
+        "status": { "type": "string", "enum": ["PASS", "REJECT", "INCONCLUSIVE"] },
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "failed_gates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/gate/properties/gate_id" }
+        },
+        "failures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failure" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "PASS" } } },
+          "then": { "properties": { "failed_gates": { "maxItems": 0 } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "REJECT" } } },
+          "then": { "properties": { "failed_gates": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_match_set_id",
+        "candidate_match_set_id",
+        "baseline_execution_id",
+        "candidate_execution_id",
+        "candidate_ref",
+        "label_set_id",
+        "label_set_version",
+        "criteria",
+        "contract_versions"
+      ],
+      "properties": {
+        "baseline_match_set_id": { "type": "string", "minLength": 1 },
+        "candidate_match_set_id": { "type": "string", "minLength": 1 },
+        "baseline_execution_id": { "type": "string", "minLength": 1 },
+        "candidate_execution_id": { "type": "string", "minLength": 1 },
+        "candidate_ref": { "type": "string", "minLength": 1, "description": "candidate_id of the candidate_rule that was judged." },
+        "label_set_id": { "type": "string", "minLength": 1 },
+        "label_set_version": { "type": "string", "minLength": 1 },
+        "criteria": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minimum_attack_retention", "maximum_new_benign_matches"],
+          "description": "The frozen thresholds that were applied, copied from the judge input.",
+          "properties": {
+            "minimum_attack_retention": { "$ref": "#/$defs/ratio" },
+            "maximum_new_benign_matches": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "contract_versions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["match_set", "reviewed_label_set"],
+          "properties": {
+            "match_set": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+            "reviewed_label_set": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+          }
+        }
+      }
+    }
+  }
+}

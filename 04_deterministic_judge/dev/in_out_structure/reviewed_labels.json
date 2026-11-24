@@ -1,52 +1,142 @@
-
 {
+  "contract_version": "0.1.0",
   "label_set_id": "labels-001",
-  "task_id": "task-001",
-  "evaluation_set_id": "eval-001",
-  "evaluation_set_version": "1.0",
-
-  "review": {
-    "review_id": "review-001",
-    "status": "approved",
-    "reviewed_at": "2026-11-15T09:30:00Z",
-    "reviewed_by": "security_reviewer"
+  "label_set_version": "1",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "eval-001",
+    "evaluation_set_checksum": "ae4b068083f6a6bea8cd5beda764f9baf8bd564b3efc9315bb3fc27c899d5bc4"
   },
-
+  "coverage": {
+    "total_events": 10,
+    "complete": true
+  },
   "labels": [
     {
-      "event_id": "E1",
+      "event_id": "E01-01",
       "label": "benign",
-      "attack_id": null,
-      "evidence_ref": "evidence-E1",
-      "review_status": "approved"
+      "source": "lab_telemetry",
+      "scenario_id": "ben-admin-login-01",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-01"
     },
     {
-      "event_id": "E2",
+      "event_id": "E01-02",
       "label": "attack",
-      "attack_id": "attack-001",
-      "evidence_ref": "evidence-E2",
-      "review_status": "approved"
+      "source": "lab_telemetry",
+      "scenario_id": "atk-brute-force-01",
+      "attack_technique": "T1110.001",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-02"
     },
     {
-      "event_id": "E3",
+      "event_id": "E01-03",
       "label": "benign",
-      "attack_id": null,
-      "evidence_ref": "evidence-E3",
-      "review_status": "approved"
+      "source": "lab_telemetry",
+      "scenario_id": "ben-admin-login-01",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-03"
     },
     {
-      "event_id": "E4",
+      "event_id": "E01-04",
       "label": "attack",
-      "attack_id": "attack-001",
-      "evidence_ref": "evidence-E4",
-      "review_status": "approved"
+      "source": "lab_telemetry",
+      "scenario_id": "atk-brute-force-01",
+      "attack_technique": "T1110.001",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-04"
+    },
+    {
+      "event_id": "E01-05",
+      "label": "benign",
+      "source": "lab_telemetry",
+      "scenario_id": "ben-admin-login-01",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-05"
+    },
+    {
+      "event_id": "E01-06",
+      "label": "attack",
+      "source": "lab_telemetry",
+      "scenario_id": "atk-brute-force-01",
+      "attack_technique": "T1110.001",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-06"
+    },
+    {
+      "event_id": "E01-07",
+      "label": "benign",
+      "source": "lab_telemetry",
+      "scenario_id": "ben-admin-login-01",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-07"
+    },
+    {
+      "event_id": "E01-08",
+      "label": "attack",
+      "source": "lab_telemetry",
+      "scenario_id": "atk-brute-force-01",
+      "attack_technique": "T1110.001",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-08"
+    },
+    {
+      "event_id": "E01-09",
+      "label": "benign",
+      "source": "lab_telemetry",
+      "scenario_id": "ben-admin-login-01",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-09"
+    },
+    {
+      "event_id": "E01-10",
+      "label": "attack",
+      "source": "lab_telemetry",
+      "scenario_id": "atk-brute-force-01",
+      "attack_technique": "T1110.001",
+      "review": {
+        "status": "reviewed",
+        "reviewer": "analyst-1",
+        "reviewed_at": "2026-11-10T09:00:00Z"
+      },
+      "provenance_ref": "label-evidence-E01-10"
     }
-  ],
-
-  "summary": {
-    "total_events": 4,
-    "benign_events": 2,
-    "attack_events": 2,
-    "unreviewed_events": 0
-  }
+  ]
 }
