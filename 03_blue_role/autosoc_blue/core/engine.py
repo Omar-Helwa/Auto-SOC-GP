@@ -69,6 +69,14 @@ class BlueResult:
         """{"blue_proposal": <contract object, unchanged>, "edited_rule": {...}}."""
         return {"blue_proposal": self.proposal, "edited_rule": self.edited_rule(fmt)}
 
+    def proposal_with_edited_rule(self, fmt: str) -> dict:
+        """The contract object with the optional ``edited_rule`` field filled in (blue_proposal 0.1.0)."""
+        embedded = dict(self.proposal, edited_rule=self.edited_rule(fmt))
+        result = validation.validate_blue_proposal(embedded)
+        if not result.ok:
+            raise BlueContractError(f"blue_proposal with edited_rule is invalid: {result.summary()}")
+        return embedded
+
     def trace(self) -> dict:
         return {"proposer_used": self.proposer_used, "notes": self.notes,
                 "attempts": [a.to_dict() for a in self.attempts]}

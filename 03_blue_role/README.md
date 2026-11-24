@@ -162,6 +162,11 @@ modifiers beyond `contains/startswith/endswith/all` (`re`, `cidr`, ...), null ch
 SPL rendering and are refused. Sigma -> SPL carries no index unless `--index` is given. The rendered search is
 canonical (re-rendered, not the original text), so spacing and parenthesisation can differ from the input.
 
+**Edited rule inside the proposal.** `blue_proposal` (0.1.0) has an optional `edited_rule: {format, text}` field.
+`BlueRole(embed_edited_rule=True)` or `BLUE_EMBED_EDITED_RULE=1` fills it, in the input rule's own format
+(ready-to-run SPL for an SPL input). It is off by default so a consumer still holding an older copy of the
+schema is not affected; the platform still compiles and runs the edits itself.
+
 ## Use a real model
 
 Keys come from environment variables only. Nothing is stored in files.
