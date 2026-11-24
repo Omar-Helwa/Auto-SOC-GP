@@ -171,6 +171,9 @@ def main() -> int:
 
     outcome = RoundController(repo, registry).run_round(round_request)
 
+    print(f"Backend: {repo.backend}")
+    if repo.backend == "mongomock":
+        print("WARNING: this round is stored only in process-local memory.")
     print(f"Database: {DB_NAME}")
     print(f"Round {outcome.task_id}: {outcome.outcome} ({outcome.reason or 'all steps ran'})")
     print("Stored this round:")

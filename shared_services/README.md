@@ -2,8 +2,7 @@
 
 MongoDB persistence for shared contract messages and auxiliary round/audit
 records, plus a controller that relays round data in Architecture 1 order.
-Validation uses shared schemas, with an explicit temporary Orchestrator telemetry
-schema fallback until the canonical shared contract is published.
+Validation uses the published shared schemas.
 Owned by the team; coordinate changes with the Orchestrator (M1) and Platform (M5).
 
 ## Layout
@@ -32,7 +31,7 @@ One collection per stored contract message (see `config.CONTRACT_COLLECTIONS`):
 |----------|-----------|---------------------|
 | round_request | `round_requests` | ✅ yes |
 | red_proposal | `red_proposals` | ✅ yes |
-| telemetry_evidence | `telemetry_evidence` | temporary Orchestrator envelope schema until the shared schema is published |
+| telemetry_evidence | `telemetry_evidence` | yes |
 | reviewed_label_set | `reviewed_label_sets` | yes |
 | blue_proposal | `blue_proposals` | ✅ yes |
 | candidate_rule | `candidate_rules` | ✅ yes (draft) |
@@ -47,27 +46,34 @@ One collection per stored contract message (see `config.CONTRACT_COLLECTIONS`):
 Validation is **app-layer**: a document is checked against its contract's schema
 before insert (`ContractViolation` is raised on failure). Contracts without a
 published schema are stored unvalidated with a warning. The init script reports
-temporary schema fallbacks separately; those must be replaced when the canonical
-shared schema is published.
-The temporary telemetry fallback reads the existing Orchestrator interface schema
-and is replaced after restart when the canonical shared schema is added.
+temporary schema fallbacks separately.
 
 ## Setup & run
 
 ```bash
 pip install -r shared_services/requirements.txt
 
-# Provision the database structure (uses mongodb://localhost:27017, db "autosoc")
+# Provision the database structure from .env (or use the mock fallback)
 python -m shared_services.scripts.init_db
 
 # Run one mock round into MongoDB
 python -m shared_services.scripts.demo_round
 
-# Tests (throwaway autosoc_test DB; skipped if Mongo is down)
+# Tests (unique throwaway DB; mock fallback if local Mongo is down)
 python -m pytest shared_services/tests
 ```
 
-Override the connection with `AUTOSOC_MONGO_URI` and `AUTOSOC_DB`.
+The repository-root `.env` supplies `MONGODB_URI` (a MongoDB connection URI).
+`AUTOSOC_MONGO_URI` overrides it, and `AUTOSOC_DB` selects the database name.
+If the initial MongoDB connection cannot be established, the repository logs a
+warning and falls back to process-local `mongomock`; this data is temporary and
+is not synchronized to Atlas. Authentication or malformed-URI errors are
+surfaced instead of being hidden by the fallback. Set
+`fallback_to_mock=False` when constructing `MongoRepository` to require MongoDB.
+
+Tests use a local endpoint by default so they never clean up data in the
+application Atlas cluster. Set `AUTOSOC_TEST_MONGO_URI` to an isolated test
+cluster only when you want to run the Mongo integration tests there.
 
 ## Wiring real services
 

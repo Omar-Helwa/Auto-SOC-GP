@@ -6,8 +6,10 @@ import hashlib
 import json
 
 import pytest
+from pymongo.errors import OperationFailure, ServerSelectionTimeoutError
 
 from shared_services.config import ALL_COLLECTIONS
+from shared_services.datastore import repository as repository_module
 from shared_services.datastore.repository import ContractViolation
 from shared_services.datastore import schema_registry
 
@@ -174,6 +176,69 @@ def test_telemetry_evidence_shared_schema_validates_writes(repo):
     invalid = dict(evidence, source="not-splunk")
     with pytest.raises(ContractViolation):
         repo.save("telemetry_evidence", invalid)
+
+
+def test_repository_falls_back_to_process_local_mock_on_connection_failure(monkeypatch):
+    class FailedAdmin:
+        def command(self, _command):
+            raise ServerSelectionTimeoutError("unreachable")
+
+    class FailedClient:
+        admin = FailedAdmin()
+
+        def __init__(self):
+            self.closed = False
+
+        def __getitem__(self, _name):
+            return self
+
+        def close(self):
+            self.closed = True
+
+    mongo_client = FailedClient()
+    monkeypatch.setattr(
+        repository_module, "MongoClient", lambda *_args, **_kwargs: mongo_client
+    )
+
+    repo = repository_module.MongoRepository(uri="mongodb://unreachable")
+
+    assert repo.backend == "mongomock"
+    assert mongo_client.closed
+    inserted_id = repo.save(
+        "round_record", {"task_id": "mock-fallback", "state": "created"}
+    )
+    assert repo.count("round_record", {"task_id": "mock-fallback"}) == 1
+    assert inserted_id
+    repo.close()
+
+
+def test_repository_does_not_hide_authentication_failure_with_mock(monkeypatch):
+    error = OperationFailure("authentication failed")
+
+    class FailedAdmin:
+        def command(self, _command):
+            raise error
+
+    class FailedClient:
+        admin = FailedAdmin()
+
+        def __init__(self):
+            self.closed = False
+
+        def __getitem__(self, _name):
+            return self
+
+        def close(self):
+            self.closed = True
+
+    mongo_client = FailedClient()
+    monkeypatch.setattr(
+        repository_module, "MongoClient", lambda *_args, **_kwargs: mongo_client
+    )
+
+    with pytest.raises(OperationFailure, match="authentication failed"):
+        repository_module.MongoRepository(uri="mongodb://bad-auth")
+    assert mongo_client.closed
 
 
 def _valid_telemetry_evidence(task_id):

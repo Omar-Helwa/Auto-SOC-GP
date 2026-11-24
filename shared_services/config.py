@@ -1,17 +1,28 @@
 """Connection + collection configuration for the AutoSOC datastore.
 
 All values are environment-overridable so the same code runs against a local
-MongoDB, a teammate's instance, or CI:
+MongoDB, an Atlas cluster, or CI:
 
-    AUTOSOC_MONGO_URI   (default: mongodb://localhost:27017)
+    MONGODB_URI         (loaded from the repository .env)
+    AUTOSOC_MONGO_URI   (overrides MONGODB_URI)
     AUTOSOC_DB          (default: autosoc)
 """
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
-MONGO_URI: str = os.environ.get("AUTOSOC_MONGO_URI", "mongodb://localhost:27017")
+from dotenv import load_dotenv
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(REPO_ROOT / ".env", override=False)
+
+MONGO_URI: str = (
+    os.environ.get("AUTOSOC_MONGO_URI")
+    or os.environ.get("MONGODB_URI")
+    or "mongodb://localhost:27017"
+)
 DB_NAME: str = os.environ.get("AUTOSOC_DB", "autosoc")
 
 # Shared contract messages (including separately versioned subcontracts),

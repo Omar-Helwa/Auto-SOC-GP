@@ -701,12 +701,13 @@ except ImportError:
 
 @lru_cache(maxsize=1)
 def _mongo_backend():
-    """'mongodb' if a server answers (AUTOSOC_MONGO_URI), else 'mongomock' if installed, else None."""
+    """Use an explicitly configured test MongoDB or fall back to mongomock."""
     if pymongo is None:
         return None
     try:
         client = pymongo.MongoClient(
-            os.environ.get("AUTOSOC_MONGO_URI", "mongodb://localhost:27017"), serverSelectionTimeoutMS=500
+            os.environ.get("AUTOSOC_TEST_MONGO_URI", "mongodb://localhost:27017"),
+            serverSelectionTimeoutMS=500,
         )
         client.admin.command("ping")
         client.close()
@@ -729,7 +730,8 @@ class MongoStoreTests(unittest.TestCase):
         self.db_name = f"autosoc_test_rounds_{uuid.uuid4().hex[:8]}"
         if _mongo_backend() == "mongodb":
             self.client = pymongo.MongoClient(
-                os.environ.get("AUTOSOC_MONGO_URI", "mongodb://localhost:27017"), serverSelectionTimeoutMS=2000
+                os.environ.get("AUTOSOC_TEST_MONGO_URI", "mongodb://localhost:27017"),
+                serverSelectionTimeoutMS=2000,
             )
         else:
             import mongomock

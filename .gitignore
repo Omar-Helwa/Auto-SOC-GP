@@ -1,7 +1,8 @@
 /AutoSOC_Architecture_1.docx
 /AutoSOC_Architecture_1.pdf
 /AutoSOC_Data_Flow.pdf
-
+atlas-credentials.env
+.env
 # Python
 __pycache__/
 *.py[cod]

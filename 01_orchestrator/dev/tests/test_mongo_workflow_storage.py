@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 import uuid
@@ -14,17 +15,18 @@ ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = ROOT.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from shared_services.config import MONGO_URI  # noqa: E402
 from shared_services.datastore.repository import MongoRepository  # noqa: E402
 from dev.mocks import MockWorkflowServices  # noqa: E402
 from workflow import create_mongo_workflow  # noqa: E402
+
+TEST_MONGO_URI = os.environ.get("AUTOSOC_TEST_MONGO_URI", "mongodb://localhost:27017")
 
 
 def mongo_is_available() -> bool:
     try:
         from pymongo import MongoClient
 
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=400)
+        client = MongoClient(TEST_MONGO_URI, serverSelectionTimeoutMS=400)
         client.admin.command("ping")
         client.close()
         return True
@@ -35,7 +37,7 @@ def mongo_is_available() -> bool:
 def drop_database(db_name: str) -> None:
     from pymongo import MongoClient
 
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=1000)
+    client = MongoClient(TEST_MONGO_URI, serverSelectionTimeoutMS=1000)
     try:
         client.drop_database(db_name)
     finally:
@@ -46,7 +48,7 @@ def drop_database(db_name: str) -> None:
 class MongoWorkflowStorageTests(unittest.TestCase):
     def test_factory_persists_request_red_input_round_and_audit_in_one_database(self):
         db_name = f"autosoc_test_workflow_{uuid.uuid4().hex[:10]}"
-        repository = MongoRepository(db_name=db_name)
+        repository = MongoRepository(uri=TEST_MONGO_URI, db_name=db_name)
         self.addCleanup(repository.close)
         self.addCleanup(repository._client.drop_database, db_name)
 
@@ -69,7 +71,7 @@ class MongoWorkflowStorageTests(unittest.TestCase):
 
     def test_completed_mock_round_and_referenced_artifacts_survive_fresh_workflow(self):
         db_name = f"autosoc_test_durable_{uuid.uuid4().hex[:10]}"
-        repository = MongoRepository(db_name=db_name)
+        repository = MongoRepository(uri=TEST_MONGO_URI, db_name=db_name)
         self.addCleanup(repository.close)
         self.addCleanup(drop_database, db_name)
         services = MockWorkflowServices("pass")
@@ -90,7 +92,7 @@ class MongoWorkflowStorageTests(unittest.TestCase):
         # A new repository and composition root must recover the terminal round
         # and load every persisted contract artifact from their exact refs.
         repository.close()
-        fresh_repository = MongoRepository(db_name=db_name)
+        fresh_repository = MongoRepository(uri=TEST_MONGO_URI, db_name=db_name)
         self.addCleanup(fresh_repository.close)
         fresh_workflow = create_mongo_workflow(fresh_repository, MockWorkflowServices("pass"))
         reloaded = fresh_workflow.run_open_round(result.round_id)

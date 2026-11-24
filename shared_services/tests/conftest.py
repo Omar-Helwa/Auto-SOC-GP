@@ -1,14 +1,12 @@
-"""Test harness for shared_services. Uses a throwaway test database.
-
-Skips the suite gracefully if MongoDB is not reachable, so it is safe in CI
-without a database.
-"""
+"""Test harness for shared_services using a throwaway MongoDB or mock database."""
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -17,18 +15,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-TEST_DB = "autosoc_test"
+TEST_DB = f"autosoc_test_{uuid4().hex}"
+TEST_MONGO_URI = os.environ.get("AUTOSOC_TEST_MONGO_URI", "mongodb://localhost:27017")
 
 
 @pytest.fixture
 def repo():
     from shared_services.datastore.repository import MongoRepository
 
-    r = MongoRepository(db_name=TEST_DB)
-    try:
-        r.ping()
-    except Exception as exc:  # noqa: BLE001
-        pytest.skip(f"MongoDB not reachable: {exc}")
+    r = MongoRepository(uri=TEST_MONGO_URI, db_name=TEST_DB)
     r.ensure_setup()
     yield r
     r._client.drop_database(TEST_DB)
