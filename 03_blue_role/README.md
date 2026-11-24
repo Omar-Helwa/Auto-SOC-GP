@@ -1,6 +1,6 @@
 # Blue role (`03_blue_role`)
 
-Blue is the defender in AutoSOC. Given a detection rule (Sigma), the benign events it wrongly
+Blue is the defender in AutoSOC. Given a detection rule (Sigma, or a plain Splunk search), the benign events it wrongly
 alerts on (**false positives**) and the attack events it must keep catching (**must-detect**),
 Blue proposes a **small edit** to the rule: an exclusion, or a narrower selection.
 
@@ -117,6 +117,50 @@ curl localhost:8080/health
 docker build -t autosoc-blue 03_blue_role
 docker run -p 8080:8080 autosoc-blue
 ```
+
+## SPL support
+
+Sigma stays the internal model. SPL (a plain Splunk search) is accepted and produced **at the edges**:
+`detection.rule_format = "spl"` with `rule_text` = the search. Blue converts it to the same internal
+rule (selections + condition), so pre-flight, the deterministic proposer and the LLM proposer work unchanged.
+The proposal's `edits` stay structured (`field` / `modifier` / `values`); the edited rule can be rendered
+as a ready-to-run search **beside** the contract object (the `blue_proposal` contract is not changed).
+
+```
+index=winlogs (Image="*\powershell.exe" OR Image="*\pwsh.exe") (CommandLine="* -enc *" OR CommandLine="* -EncodedCommand *")
+```
+becomes, after an `add_exclusion`:
+```
+index=winlogs (Image="*\powershell.exe" OR Image="*\pwsh.exe") (CommandLine="* -enc *" OR CommandLine="* -EncodedCommand *") NOT (User="CORP\svc_inventory" AND ParentImage="C:\Windows\System32\svchost.exe")
+```
+
+```bash
+python -m autosoc_blue propose --input spl_input.json --out proposal.json --render spl   # also writes proposal.edited.spl
+python -m autosoc_blue propose --input spl_input.json --render spl --rule-out edited.spl
+python -m autosoc_blue convert --from sigma --to spl rule.yml [--index winlogs]
+python -m autosoc_blue convert --from spl --to sigma search.spl
+curl -X POST 'localhost:8080/propose?render=spl' ...     # {"blue_proposal": ..., "edited_rule": {"format","text"}}
+curl -X POST localhost:8080/convert -d '{"from":"sigma","to":"spl","rule_text":"..."}'
+```
+Python: `engine.propose(blue_input, render="spl")` returns `{"blue_proposal", "edited_rule"}`;
+`BlueRole.run()` still returns only the contract object (`role.last_edited_rule` holds the rendered rule).
+
+**Supported SPL**: `index=` / `sourcetype=` / `source=` / `earliest=` / `latest=` (kept as scope, not as detection
+logic); `field=value`, quoted values, `*` wildcards (become `contains` / `startswith` / `endswith` / `equals`);
+`!=`, `NOT`, `AND` (also implicit), `OR`, parentheses, `field IN (a, b, c)`; Splunk precedence (NOT, then OR,
+then AND); field names case-sensitive, values case-insensitive; `\` and `\"` escapes in values (single
+backslashes in Windows paths are tolerated); an optional leading `search`; a trailing `| table ...` or
+`| fields ...` (ignored).
+
+**Refused, with a plain explanation** (an `error_response`, category `validation`): any other pipe command
+(`eval`, `rex`, `regex`, `stats`, `lookup`, `where`, ...), subsearches `[...]`, macros `` `x` ``, `TERM()`, `CASE()`,
+comparisons (`<`, `>`), free-text terms, lowercase `and/or/not`, escaped `\*`, `?` in values, scope terms inside
+OR/NOT, a search with no detection condition.
+
+Limits: `field!=v` is treated as `NOT field=v` (Splunk's `!=` also requires the field to exist). Sigma
+modifiers beyond `contains/startswith/endswith/all` (`re`, `cidr`, ...), null checks and aggregation have no
+SPL rendering and are refused. Sigma -> SPL carries no index unless `--index` is given. The rendered search is
+canonical (re-rendered, not the original text), so spacing and parenthesisation can differ from the input.
 
 ## Use a real model
 
