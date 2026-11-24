@@ -95,6 +95,23 @@
     "rationale": {
       "type": "string",
       "maxLength": 2000
+    },
+    "edited_rule": {
+      "type": "object",
+      "description": "Optional. The base rule with the edits applied, rendered by Blue for convenience (e.g. a ready-to-run Splunk search). Informational only: the platform compiles and runs the edits itself and the judge measures; consumers may ignore this field.",
+      "additionalProperties": false,
+      "required": ["format", "text"],
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["sigma", "spl"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        }
+      }
     }
   },
   "$defs": {

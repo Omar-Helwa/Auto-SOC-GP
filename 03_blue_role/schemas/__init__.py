@@ -1,15 +1,14 @@
-"""Blue role: local representation of the shared contracts.
+"""Compatibility alias: ``schemas`` is now ``autosoc_blue.schemas``.
 
-- ``constants``  : closed vocabularies (operations, modifiers, categories).
-- ``validation`` : validate any dict against a contract schema (source of truth).
-- ``models``     : typed dataclasses for blue_input and blue_proposal.
-- ``errors``     : build contract-valid error_response payloads.
-- ``serializer`` : turn a model into a validated, contract-valid dict / JSON.
-
-Nothing here imports another member's implementation, only the shared JSON
-Schema files.
+Kept so existing imports (``from schemas.models import ...``) keep working.
+New code should import ``autosoc_blue.schemas``.
 """
 
-from . import constants, errors, models, serializer, validation  # noqa: F401
+import sys
 
-__all__ = ["constants", "validation", "models", "errors", "serializer"]
+from autosoc_blue import schemas as _real
+from autosoc_blue.schemas import _loader, constants, errors, models, serializer, validation  # noqa: F401
+
+for _name in ("_loader", "constants", "errors", "models", "serializer", "validation"):
+    sys.modules[f"schemas.{_name}"] = getattr(_real, _name)
+sys.modules[__name__] = _real

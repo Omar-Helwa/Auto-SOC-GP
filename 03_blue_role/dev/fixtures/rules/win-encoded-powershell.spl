@@ -1,0 +1,1 @@
+index=winlogs (Image="*\\powershell.exe" OR Image="*\\pwsh.exe") (CommandLine="* -enc *" OR CommandLine="* -EncodedCommand *")

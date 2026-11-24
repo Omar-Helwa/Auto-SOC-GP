@@ -18,7 +18,7 @@ edits, permitted edit schema").
 | `task_id` | string | Echoed into the proposal and any error. |
 | `prompt_version` | string | Blue prompt version pinned for the round. |
 | `output_contract_version` | string | `blue_proposal` version to emit (`0.1.0`). |
-| `detection` | object | `detection_id`, `rule_version`, `rule_format` (`sigma`), `rule_text` (Sigma YAML), `logic_summary` (+ optional `attack_techniques`). |
+| `detection` | object | `detection_id`, `rule_version`, `rule_format` (`sigma` or `spl`), `rule_text` (Sigma YAML, or a plain Splunk search when `spl`), `logic_summary` (+ optional `attack_techniques`). |
 | `false_positives` | array (1-50) | Reviewed benign events the rule matched. |
 | `must_detect` | array (1-200) | Reviewed attack events that must still match after the edit. |
 | `edit_constraints` | object | `allowed_operations`, `allowed_fields`, `max_edits` (1-5), optional `attacker_controllable_fields`. |
@@ -43,4 +43,15 @@ needs the values. The values still come from the platform evidence store, never 
 ## Examples
 
 - Valid: [`examples/valid_blue_input.json`](examples/valid_blue_input.json)
-- Invalid: [`examples/invalid_blue_input.json`](examples/invalid_blue_input.json) (empty `must_detect`, `rule_format` not `sigma`, `max_edits` 9)
+- Invalid: [`examples/invalid_blue_input.json`](examples/invalid_blue_input.json) (empty `must_detect`, `rule_format` not `sigma`/`spl`, `max_edits` 9)
+- Valid, SPL: [`examples/valid_blue_input_spl.json`](examples/valid_blue_input_spl.json)
+- SPL refused by Blue: [`examples/invalid_blue_input_spl.json`](examples/invalid_blue_input_spl.json) (schema-valid, but the search ends in `| stats`; Blue answers `error_response` category `validation`)
+
+## SPL (`rule_format: spl`)
+
+Added in a backward-compatible way (version stays `0.1.0`; existing `sigma` inputs are unchanged).
+`rule_text` is a plain Splunk search. Supported: `index` / `sourcetype` / `source` / `earliest` / `latest` scope,
+`field=value`, quoted values, `*` wildcards, `!=`, `NOT`, `AND`, `OR`, parentheses, `field IN (...)`, and a
+trailing `| table` / `| fields` (ignored). Refused (error_response `validation`, with the reason): other pipe
+commands (`eval`, `rex`, `regex`, `stats`, `lookup`, ...), subsearches, macros, `TERM()`, `CASE()`, comparisons.
+Edits in the proposal stay structured; see `03_blue_role/README.md`, section "SPL support".

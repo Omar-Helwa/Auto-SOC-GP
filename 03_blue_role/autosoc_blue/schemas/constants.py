@@ -21,7 +21,7 @@ EDIT_OPERATIONS = ("add_exclusion", "narrow_selection")
 CONDITION_MODIFIERS = ("equals", "contains", "startswith", "endswith")
 
 # detection.rule_format
-RULE_FORMATS = ("sigma",)
+RULE_FORMATS = ("sigma", "spl")
 
 # prior_blue_edits[].decision
 PRIOR_DECISIONS = ("accepted", "rejected", "inconclusive")

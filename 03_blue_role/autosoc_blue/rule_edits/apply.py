@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 
 import yaml
 
-from schemas import constants
-from schemas.models import FieldCondition, RuleEdit
+from ..schemas import constants
+from ..schemas.models import FieldCondition, RuleEdit
 
 
 class EditError(ValueError):
