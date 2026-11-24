@@ -178,11 +178,11 @@ class OrchestratorInputAdapter:
                     decision = message.get("decision", {})
                     status = decision.get("status") if isinstance(decision, Mapping) else None
                     if status in ("PASS", "REJECT") and message.get("provenance", {}).get(
-                        "criteria_version"
-                    ) != record.config.criteria["criteria_version"]:
+                        "criteria"
+                    ) != record.config.criteria["thresholds"]:
                         raise ContractValidationError(
                             contract,
-                            ["judge_result.provenance.criteria_version differs from the frozen round criteria"],
+                            ["judge_result.provenance.criteria differs from the frozen round criteria thresholds"],
                         )
                 validated[artifact_name] = message
             missing = [

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -25,23 +26,75 @@ def load_feedback(example: str = "valid_feedback_record.json") -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def valid_artifact_payloads(task_id: str, judge_result: dict) -> dict[str, tuple[str, dict]]:
+    def load_example(folder: str, filename: str) -> dict:
+        path = CONTRACTS / folder / "examples" / filename
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    red = load_example("red_proposal", "valid_red_proposal.json")
+    red["task_id"] = task_id
+    blue = load_example("blue_proposal", "valid_blue_proposal.json")
+    blue["task_id"] = task_id
+    candidate_rule = load_example("candidate_rule", "valid_candidate_rule.json")
+    candidate_rule["task_id"] = task_id
+
+    telemetry = {
+        "contract_version": "0.1.0",
+        "evidence_id": f"evidence-{task_id}",
+        "task_id": task_id,
+        "proposal_id": red["proposal_id"],
+        "detection_id": red["detection_under_test"]["detection_id"],
+        "source": "splunk",
+        "execution": {
+            "execution_id": f"execution-{task_id}",
+            "status": "succeeded",
+            "operation_id": f"operation-{task_id}",
+            "approval_id": f"approval-{task_id}",
+            "started_at": "2026-01-01T00:00:00Z",
+            "completed_at": "2026-01-01T00:00:01Z",
+            "event_count": 0,
+            "truncated": False,
+        },
+        "events": [],
+    }
+    telemetry["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            telemetry,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    baseline = load_example("candidate_rule", "valid_match_set.json")
+    baseline.update(task_id=task_id, role="baseline")
+    baseline.pop("candidate_ref", None)
+    candidate = load_example("candidate_rule", "valid_match_set.json")
+    candidate["task_id"] = task_id
+    candidate_rule["task_id"] = task_id
+    judge_result["task_id"] = task_id
+
+    return {
+        "red_proposal": ("red_proposal", red),
+        "telemetry_evidence": ("telemetry_evidence", telemetry),
+        "reviewed_label_set": (
+            "reviewed_label_set",
+            load_example("telemetry_evidence", "valid_reviewed_label_set.json"),
+        ),
+        "blue_proposal": ("blue_proposal", blue),
+        "candidate_rule": ("candidate_rule", candidate_rule),
+        "baseline_match_set": ("match_set", baseline),
+        "candidate_match_set": ("match_set", candidate),
+        "judge_result": ("judge_result", judge_result),
+    }
+
+
 def store_feedback_and_artifacts(feedback: dict):
     artifacts = InMemoryArtifactStore()
-    contract_names = {
-        "red_proposal": "red_proposal",
-        "telemetry_evidence": "telemetry_evidence",
-        "reviewed_label_set": "reviewed_label_set",
-        "blue_proposal": "blue_proposal",
-        "candidate_rule": "candidate_rule",
-        "baseline_match_set": "match_set",
-        "candidate_match_set": "match_set",
-        "judge_result": "judge_result",
-    }
-    for artifact_name, contract in contract_names.items():
-        if artifact_name == "judge_result":
-            payload = feedback["judge_result"]
-        else:
-            payload = {"task_id": feedback["task_id"], "artifact": artifact_name}
+    for artifact_name, (contract, payload) in valid_artifact_payloads(
+        feedback["task_id"], copy.deepcopy(feedback["judge_result"])
+    ).items():
         feedback["artifact_refs"][artifact_name] = artifacts.save(contract, payload)
     return artifacts
 
@@ -145,21 +198,14 @@ class FeedbackStoreTests(unittest.TestCase):
         manager = RoundManager(InMemoryRoundStore())
         manager.create_round(request)
 
-        payloads = {
-            "red_proposal": ("red_proposal", {"task_id": round_id}),
-            "telemetry_evidence": ("telemetry_evidence", {"task_id": round_id}),
-            "reviewed_label_set": ("reviewed_label_set", {"task_id": round_id}),
-            "baseline_match_set": ("match_set", {"task_id": round_id}),
-            "blue_proposal": ("blue_proposal", {"task_id": round_id}),
-            "candidate_rule": ("candidate_rule", {"task_id": round_id}),
-            "candidate_match_set": ("match_set", {"task_id": round_id}),
-        }
+        judge_result = load_feedback()["judge_result"]
+        judge_result["task_id"] = round_id
+        payloads = valid_artifact_payloads(round_id, judge_result)
         refs = {
             name: artifacts.save(contract, payload)
             for name, (contract, payload) in payloads.items()
+            if name != "judge_result"
         }
-        judge_result = load_feedback()["judge_result"]
-        judge_result["task_id"] = round_id
         refs["judge_result"] = artifacts.save("judge_result", judge_result)
 
         manager.advance(round_id, RoundState.RED_PROPOSED, artifacts={"red_proposal": refs["red_proposal"]})

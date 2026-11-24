@@ -73,7 +73,10 @@ REQUEST = {
     "criteria": {
         "criteria_id": "criteria-001",
         "criteria_version": "1.0",
-        "thresholds": {"min_fp_reduction": 1, "max_attack_loss": 0},
+        "thresholds": {
+            "minimum_attack_retention": 1.0,
+            "maximum_new_benign_matches": 0,
+        },
     },
     "versions": {
         "red_prompt": "red-system@0.1.0",
@@ -268,6 +271,7 @@ class CreateRoundTests(unittest.TestCase):
                 "rule_version": "3.2.0",
                 "dataset_version": "2026.11.1",
                 "evaluation_set_id": "evalset-01",
+                "criteria_id": "criteria-001",
                 "criteria_version": "1.0",
             },
         )

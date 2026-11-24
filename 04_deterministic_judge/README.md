@@ -40,9 +40,12 @@ The input is one JSON object:
 | `baseline` | `00_shared_contracts/candidate_rule/match_set.schema.json` (`role: baseline`) | Events matched by the original rule |
 | `candidate` | same schema (`role: candidate`, `candidate_ref` required) | Events matched by the candidate rule |
 | `reviewed_labels` | `00_shared_contracts/telemetry_evidence/reviewed_label_set.schema.json` | Reviewed labels for every event of the frozen set |
-| `criteria` | judge-owned: `criteria_id`, `criteria_version`, `minimum_attack_retention`, `maximum_new_benign_matches` | Fixed acceptance criteria |
+| `criteria` | `minimum_attack_retention`, `maximum_new_benign_matches` | Fixed thresholds copied from the frozen round request |
 
-Task, detection, rule versions, dataset, and execution provenance are read from the artifacts themselves.
+The Orchestrator carries criteria identity/version separately in `versions`;
+the Judge result records the exact applied thresholds in
+`provenance.criteria`. Task, detection, rule versions, dataset, and execution
+provenance are read from the artifacts themselves.
 
 Each artifact is validated against its shared schema. Schemas are loaded from `00_shared_contracts/`
 by `$id`; override the folder with `AUTOSOC_CONTRACTS_DIR`. The judge then applies the rules in

@@ -34,8 +34,12 @@ class MockJudge:
             })
             result["provenance"]["baseline_match_set_id"] = judge_input["baseline_match_set"]["match_set_id"]
             result["provenance"]["candidate_match_set_id"] = judge_input["candidate_match_set"]["match_set_id"]
+            result["provenance"]["baseline_execution_id"] = judge_input["baseline_match_set"]["execution"]["execution_id"]
+            result["provenance"]["candidate_execution_id"] = judge_input["candidate_match_set"]["execution"]["execution_id"]
             result["provenance"]["candidate_ref"] = judge_input["candidate_match_set"]["candidate_ref"]
-            result["provenance"]["criteria_version"] = judge_input["criteria"]["criteria_version"]
+            result["provenance"]["label_set_id"] = judge_input["reviewed_label_set"]["label_set_id"]
+            result["provenance"]["label_set_version"] = judge_input["reviewed_label_set"]["label_set_version"]
+            result["provenance"]["criteria"] = dict(judge_input["criteria"])
             result["provenance"]["contract_versions"] = {
                 "match_set": judge_input["candidate_match_set"]["contract_version"],
                 "reviewed_label_set": judge_input["reviewed_label_set"]["contract_version"],

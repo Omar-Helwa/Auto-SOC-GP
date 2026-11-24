@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any, Mapping
 
 from workflow import BlueInputContext, WorkflowStepOutput
@@ -36,12 +38,30 @@ class MockPlatform:
             "contract_version": "0.1.0",
             "evidence_id": f"evidence-{task_id}",
             "task_id": task_id,
+            "proposal_id": red_proposal["proposal_id"],
             "detection_id": round_request["detection"]["detection_id"],
-            "evidence_type": "telemetry",
-            "evidence_ref": f"mock://evidence/{task_id}",
-            "verified": True,
-            "provenance_ref": telemetry_ref,
+            "source": "splunk",
+            "execution": {
+                "execution_id": f"exec-telemetry-{task_id}",
+                "status": "succeeded",
+                "operation_id": f"op-telemetry-{task_id}",
+                "approval_id": f"approval-telemetry-{task_id}",
+                "started_at": "2026-01-01T00:00:00Z",
+                "completed_at": "2026-01-01T00:00:01Z",
+                "event_count": 0,
+                "truncated": False,
+            },
+            "events": [],
         }
+        telemetry["content_sha256"] = hashlib.sha256(
+            json.dumps(
+                telemetry,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
         labels = clone(load_shared_example(
             "telemetry_evidence", "valid_reviewed_label_set.json"
         ))

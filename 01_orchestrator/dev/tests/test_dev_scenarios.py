@@ -95,6 +95,30 @@ class MockWorkflowScenarioTests(unittest.TestCase):
         )
         self.assertEqual(result.record.error["category"], expected["error_category"])
 
+    def test_judge_result_must_echo_frozen_criteria_thresholds(self):
+        request = read_json(FIXTURES / "round_requests" / "pass.json")
+        services = MockWorkflowServices("pass")
+        run_judge = services.judge.run
+
+        def judge_with_changed_criteria(judge_input):
+            result = run_judge(judge_input)
+            result["provenance"]["criteria"]["minimum_attack_retention"] = 0.5
+            return result
+
+        services.judge.run = judge_with_changed_criteria
+        workflow = create_workflow(
+            InMemoryRoundStore(),
+            InMemoryArtifactStore(),
+            services,
+            validator=InterfaceValidator(),
+            allow_non_mongo_stores=True,
+        )
+        result = workflow.run_round(request)
+
+        self.assertEqual(result.state, "failed")
+        self.assertEqual(result.record.error["category"], "validation")
+        self.assertIn("provenance.criteria differs", result.record.error["message"])
+
     def _run(self, scenario: str):
         request = read_json(FIXTURES / "round_requests" / f"{scenario}.json")
         base_store = InMemoryArtifactStore()

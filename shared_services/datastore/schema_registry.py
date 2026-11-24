@@ -1,10 +1,9 @@
-"""Resolve schemas used by the Mongo repository.
+"""Resolve the shared and component-input schemas used by Mongo storage.
 
-Published schemas in ``00_shared_contracts`` take precedence. The Red input
-schema is registered for the auxiliary red_input document. The full shared
-telemetry_evidence schema is pending, so its existing Orchestrator temporary
-envelope schema is used as a clearly reported fallback. Other messages with
-no available schema are stored unvalidated with a warning.
+Published schemas in ``00_shared_contracts`` take precedence. Explicit
+temporary component schemas are fallbacks only when their shared schema is
+absent. Other messages with no available schema are stored unvalidated with a
+warning.
 """
 
 from __future__ import annotations
@@ -46,9 +45,8 @@ SCHEMA_FILES: dict[str, Path] = {
     "evidence_reference": SHARED / "telemetry_evidence" / "evidence_reference.schema.json",
 }
 
-# The full shared telemetry_evidence schema is pending. Until it is published,
-# validate the Orchestrator's explicitly temporary boundary envelope. A future
-# shared schema takes precedence on the next process start (schemas are cached).
+# Temporary component-boundary schemas are used only while a shared schema is
+# unavailable; the published shared telemetry schema currently takes precedence.
 TEMPORARY_SCHEMA_FILES: dict[str, Path] = {
     "telemetry_evidence": ORCHESTRATOR / "interfaces" / "contracts" / "telemetry_evidence.schema.json",
 }
@@ -66,7 +64,7 @@ def _schema_path(name: str) -> Path | None:
 
 @lru_cache(maxsize=None)
 def load_schema(name: str) -> dict | None:
-    """Return the canonical or explicitly temporary schema, if available."""
+    """Return the canonical schema or its explicitly temporary fallback."""
     path = _schema_path(name)
     if path is None:
         return None

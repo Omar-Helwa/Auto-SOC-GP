@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -61,7 +62,7 @@ def test_schema_registry_reports_known_contracts():
     assert "match_set" in available
     assert "reviewed_label_set" in available
     assert "telemetry_evidence" in available
-    assert "telemetry_evidence" in schema_registry.temporary_contracts()
+    assert "telemetry_evidence" not in schema_registry.temporary_contracts()
     assert "judge_result" not in schema_registry.missing_contracts()
 
 
@@ -79,17 +80,13 @@ def test_new_storage_schemas_validate_examples_without_mongo():
         result = validate(_valid_example(path), contract)
         assert result is not None and result.ok, f"{contract}: {result}"
 
-    telemetry = {
-        "contract_version": "0.1.0",
-        "evidence_id": "evidence-schema-test",
-        "task_id": "telemetry-schema-test",
-        "detection_id": "det-schema-test",
-        "evidence_type": "telemetry",
-        "evidence_ref": "evidence://schema-test/telemetry",
-        "verified": True,
-    }
+    telemetry = _valid_telemetry_evidence("telemetry-schema-test")
     result = validate(telemetry, "telemetry_evidence")
     assert result is not None and result.ok
+
+    invalid = dict(telemetry, source="not-splunk")
+    result = validate(invalid, "telemetry_evidence")
+    assert result is not None and not result.ok
 
 
 def _valid_round_request():
@@ -169,19 +166,43 @@ def test_invalid_match_set_and_label_set_are_rejected(repo, contract, example_pa
     assert repo.count(contract) == 0
 
 
-def test_telemetry_evidence_temporary_schema_fallback_validates_writes(repo):
-    evidence = {
-        "contract_version": "0.1.0",
-        "evidence_id": "evidence-db-test",
-        "task_id": "telemetry-db-test",
-        "detection_id": "det-db-test",
-        "evidence_type": "telemetry",
-        "evidence_ref": "evidence://db-test/telemetry",
-        "verified": True,
-    }
+def test_telemetry_evidence_shared_schema_validates_writes(repo):
+    evidence = _valid_telemetry_evidence("telemetry-db-test")
     assert repo.save("telemetry_evidence", evidence)
     assert repo.count("telemetry_evidence", {"task_id": evidence["task_id"]}) == 1
 
-    invalid = dict(evidence, verified=False)
+    invalid = dict(evidence, source="not-splunk")
     with pytest.raises(ContractViolation):
         repo.save("telemetry_evidence", invalid)
+
+
+def _valid_telemetry_evidence(task_id):
+    evidence = {
+        "contract_version": "0.1.0",
+        "evidence_id": f"evidence-{task_id}",
+        "task_id": task_id,
+        "proposal_id": "proposal-telemetry-test",
+        "detection_id": "det-telemetry-test",
+        "source": "splunk",
+        "execution": {
+            "execution_id": f"execution-{task_id}",
+            "status": "succeeded",
+            "operation_id": f"operation-{task_id}",
+            "approval_id": f"approval-{task_id}",
+            "started_at": "2026-01-01T00:00:00Z",
+            "completed_at": "2026-01-01T00:00:01Z",
+            "event_count": 0,
+            "truncated": False,
+        },
+        "events": [],
+    }
+    evidence["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            evidence,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return evidence

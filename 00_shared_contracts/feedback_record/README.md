@@ -57,9 +57,10 @@ values to be equal. Producers must enforce semantic consistency:
 
 1. `round_id == task_id == judge_result.task_id`.
 2. Top-level `decision` exactly equals `judge_result.decision`.
-3. For PASS/REJECT, `judge_result.provenance.criteria_version` matches
-   `versions.criteria_version`; evaluation and provenance identities match the
-   frozen round and referenced artifacts.
+3. For PASS/REJECT, `judge_result.provenance.criteria` matches the thresholds
+   frozen in the round request; `versions.criteria_version` identifies the
+   criteria version. Evaluation and provenance identities match the frozen
+   round and referenced artifacts.
 4. Artifact references resolve to documents belonging to this task, detection,
    evaluation set, and workflow.
 

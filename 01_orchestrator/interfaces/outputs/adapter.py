@@ -152,7 +152,7 @@ class OrchestratorOutputAdapter:
             "baseline_match_set": baseline,
             "candidate_match_set": candidate,
             "reviewed_label_set": labels,
-            "criteria": frozen_request["criteria"],
+            "criteria": frozen_request["criteria"]["thresholds"],
             "versions": record.config.pinned_versions(),
         }
         message = self.validator.validate("judge_input", message)

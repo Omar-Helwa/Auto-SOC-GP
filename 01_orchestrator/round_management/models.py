@@ -312,6 +312,7 @@ class RoundConfig:
             "rule_version": self.detection["rule_version"],
             "dataset_version": self.dataset["dataset_version"],
             "evaluation_set_id": self.dataset["evaluation_set_id"],
+            "criteria_id": self.criteria["criteria_id"],
             "criteria_version": self.criteria["criteria_version"],
         }
         if "model_date" in self.versions:

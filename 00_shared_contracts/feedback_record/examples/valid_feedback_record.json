@@ -97,8 +97,10 @@
       "candidate_ref": "cand-rule-001",
       "label_set_id": "labels-001",
       "label_set_version": "1",
-      "criteria_id": "criteria-dev-001",
-      "criteria_version": "1.0",
+      "criteria": {
+        "minimum_attack_retention": 1.0,
+        "maximum_new_benign_matches": 0
+      },
       "contract_versions": {"match_set": "0.1.0", "reviewed_label_set": "0.1.0"}
     }
   },
