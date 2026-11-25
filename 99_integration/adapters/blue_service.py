@@ -116,11 +116,44 @@ def blue_input_from_context(ctx: dict, evidence_fixture: Path | str = DEFAULT_EV
 
 
 def _apply_platform_evidence(blue_input: dict, round_request: dict, results: dict) -> None:
+    false_positives, must_detect = platform_evidence_cases(
+        round_request,
+        results["platform_execute"].payload,
+        results["platform_labels"].payload,
+        results["platform_baseline"].payload,
+        task_id=blue_input["task_id"],
+        detection_id=blue_input["detection"]["detection_id"],
+    )
+    blue_input["false_positives"] = false_positives
+    blue_input["must_detect"] = must_detect
+
+
+_EVENT_METADATA_FIELDS = ("host", "source", "sourcetype")
+
+
+def platform_evidence_cases(
+    round_request: dict,
+    telemetry: dict,
+    labels: dict,
+    baseline: dict,
+    *,
+    task_id: str,
+    detection_id: str,
+    observed_fields: list[str] | tuple[str, ...] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Join verified telemetry, reviewed labels, and baseline matches into Blue cases.
+
+    False positives are reviewed benign events the baseline matched; must-detect
+    cases are every reviewed attack event. Event identity is ``event_id`` in all
+    three artifacts.
+
+    ``observed_fields`` limits what each case copies from the event: only the
+    named fields are taken from ``fields`` (or from the event's host/source/
+    sourcetype metadata), so Blue receives what it may reason about and no
+    other telemetry. Without it, every event field is copied.
+    """
     from shared_services.datastore.validation import validate
 
-    telemetry = results["platform_execute"].payload
-    labels = results["platform_labels"].payload
-    baseline = results["platform_baseline"].payload
     for contract, payload in (
         ("telemetry_evidence", telemetry),
         ("reviewed_label_set", labels),
@@ -147,9 +180,6 @@ def _apply_platform_evidence(blue_input: dict, round_request: dict, results: dic
         raise ValueError("Platform telemetry failed content-hash verification")
 
     dataset = round_request.get("dataset")
-    task_id = blue_input["task_id"]
-    detection_id = blue_input["detection"]["detection_id"]
-
     if telemetry.get("task_id") != task_id or telemetry.get("detection_id") != detection_id:
         raise ValueError("Platform telemetry does not match the round task and detection")
     if labels.get("dataset") != dataset or baseline.get("dataset") != dataset:
@@ -169,11 +199,39 @@ def _apply_platform_evidence(blue_input: dict, round_request: dict, results: dic
         if not isinstance(event_id, str) or event_id in event_by_id:
             raise ValueError("Platform telemetry contains a missing or duplicate event_id")
         fields = event.get("fields")
-        if not isinstance(fields, dict) or not fields:
-            raise ValueError(f"Platform telemetry event {event_id!r} has no fields")
-        if any(not isinstance(value, str) for value in fields.values()):
-            raise ValueError(f"Platform telemetry event {event_id!r} has non-string fields")
-        event_by_id[event_id] = fields
+        if observed_fields is None:
+            if not isinstance(fields, dict) or not fields:
+                raise ValueError(f"Platform telemetry event {event_id!r} has no fields")
+            if any(not isinstance(value, str) for value in fields.values()):
+                raise ValueError(f"Platform telemetry event {event_id!r} has non-string fields")
+            event_by_id[event_id] = fields
+        else:
+            if not isinstance(fields, dict):
+                raise ValueError(f"Platform telemetry event {event_id!r} has no fields")
+            event_by_id[event_id] = event
+
+    def observed(event_id: str) -> dict:
+        if observed_fields is None:
+            return event_by_id[event_id]
+        event = event_by_id[event_id]
+        projected = {}
+        for name in observed_fields:
+            if name in event["fields"]:
+                value = event["fields"][name]
+            elif name in _EVENT_METADATA_FIELDS and name in event:
+                value = event[name]
+            else:
+                continue
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"Platform telemetry event {event_id!r} field {name!r} is not a single string value"
+                )
+            projected[name] = value
+        if not projected:
+            raise ValueError(
+                f"Platform telemetry event {event_id!r} has none of the fields Blue may observe"
+            )
+        return projected
 
     baseline_match_ids = {
         match["event_id"] for match in baseline.get("matches", [])
@@ -201,17 +259,15 @@ def _apply_platform_evidence(blue_input: dict, round_request: dict, results: dic
                     f"reviewed_label_set:{labels['label_set_id']}#{event_id}"
                 ),
             },
-            "observed_fields": event_by_id[event_id],
+            "observed_fields": observed(event_id),
         }
         scenario_id = label.get("scenario_id")
         if scenario_id:
             case["label_note"] = f"Reviewed scenario: {scenario_id}"
         (false_positives if is_false_positive else must_detect).append(case)
-
     if not false_positives or not must_detect:
         raise ValueError(
             "Platform evidence must include a baseline-matched benign event "
             "and at least one reviewed attack event"
         )
-    blue_input["false_positives"] = false_positives
-    blue_input["must_detect"] = must_detect
+    return false_positives, must_detect

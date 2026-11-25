@@ -1,0 +1,4 @@
+# Share the extractions with every app (the Platform searches from "search").
+[]
+access = read : [ * ], write : [ admin ]
+export = system

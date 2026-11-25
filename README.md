@@ -43,10 +43,13 @@ Only Platform executes approved operations; only the Judge returns an
 acceptance decision. The Orchestrator enforces order and records state but does
 not author Red/Blue proposals or decide whether a candidate passes.
 
-The assembled runner in `99_integration/assembled_runs/` is a development
-composition. Its Platform fixtures are marked partial and the deterministic
-Judge therefore cannot produce an acceptance verdict from them. A live demo
-requires the configured external services and persistent MongoDB.
+The assembled runner in `99_integration/assembled_runs/` composes the real
+Red, Blue, Platform (approval-gated Splunk searches), and Judge components.
+It requires a frozen, human-reviewed evaluation set indexed in Splunk, Splunk
+over verified TLS, and persistent MongoDB. Its tests use a local Splunk stub
+and `mongomock`. See
+[`99_integration/assembled_runs/README.md`](99_integration/assembled_runs/README.md)
+for setup, the mock/live boundary, and current limitations.
 
 ## Development
 

@@ -41,6 +41,32 @@ The subset contains attack events matching the rule's initial search and all
 available benign events. Labels retain their original review status; the subset
 must not be treated as judge-ready until an authorized reviewer reviews it.
 
+`evalset-demo-lsass-v1` has no benign event the LSASS rule matches. Version 2
+adds three SYNTHETIC benign false positives. They are constructed Sysmon
+EventID 8 events from a fictional "Contoso EDR" agent, modelled on the rule's
+documented false positive (legitimate security tools), and are not recorded
+data. They live in `original/attacks/benign/lab__synthetic_lsass_edr/`, so they
+are labelled `source: lab_telemetry`. The assembled runner therefore refuses
+hosted models for this set.
+```
+python make_synthetic_lsass_benign.py
+python build_evaluation_set.py --eval-set-id evalset-multi-v2 --dataset-version 2026-11-25
+python prepare_rules.py --eval-set-id evalset-multi-v2
+python build_demo_subset.py --source-eval-set evalset-multi-v2 --eval-set-id evalset-demo-lsass-v2
+python validate_prepared.py --eval-set-id evalset-demo-lsass-v2
+```
+
+Record a human review of one prepared set with `review_labels.py`. It prints
+each label group with an example event and asks the reviewer to type a
+confirmation phrase. `--sheet review.csv` exports every event for a detailed
+check without changing anything. `--dispute EVENT_ID` keeps the set incomplete,
+and `--relabel EVENT_ID=benign` corrects a label. The previous label file is
+kept as a `.bak-<timestamp>` copy.
+```
+python review_labels.py --eval-set-id evalset-demo-lsass-v2 --reviewer "<name>" --sheet review.csv
+python review_labels.py --eval-set-id evalset-demo-lsass-v2 --reviewer "<name>"
+```
+
 The uploader requires HTTPS by default. Plain HTTP is refused unless
 `SPLUNK_HEC_ALLOW_INSECURE_HTTP=1` is explicitly set for an approved isolated
 lab upload. That setting permits the HEC token to travel unencrypted.

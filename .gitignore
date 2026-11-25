@@ -20,3 +20,6 @@ venv/
 05_platform_integrations/labelled_data/public_datasets/original
 05_platform_integrations/labelled_data/public_datasets/prepared
 
+
+# Assembled-run Platform evidence (measured telemetry; may be private)
+99_integration/reports/platform_evidence/

@@ -212,9 +212,9 @@ docker run -d --name autosoc-mongo -p 27017:27017 mongo:7
 python 99_integration/assembled_runs/run_with_real_red_and_blue.py [--provider mock]
 ```
 
-The assembled runner uses contract-valid Platform smoke fixtures and returns an
-`INCONCLUSIVE` mock judge result. It does not execute Splunk or produce a
-measured acceptance verdict.
+The assembled runner uses the real Platform adapter: approved Splunk searches
+over a frozen, human-reviewed evaluation set. It fails closed when labels are
+unreviewed. See `99_integration/assembled_runs/README.md`.
 
 ## Tests
 

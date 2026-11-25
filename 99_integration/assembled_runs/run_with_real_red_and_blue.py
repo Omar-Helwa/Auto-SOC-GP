@@ -1,32 +1,31 @@
-"""Assembled round: REAL Red + REAL Blue + real Judge, mock Platform -> MongoDB.
+"""Assembled round: real Red + real Blue + real Platform (Splunk) + real Judge -> MongoDB.
 
-Red (02_red_role), Blue (03_blue_role, package ``autosoc_blue``), and the
-deterministic Judge (04_deterministic_judge) are wired through adapters. Platform
-outputs are smoke-test fixtures, not real Splunk measurements. The fixture
-contains no baseline attack matches, so the real Judge returns INCONCLUSIVE
-rather than an acceptance decision. Everything each service returns is
-validated and stored in MongoDB.
+The Orchestrator (01_orchestrator, through shared_services.RoundController)
+drives the round. The Platform adapter (99_integration/adapters/platform_service.py)
+runs approved, read-only Splunk searches over a frozen, human-reviewed
+evaluation set. The deterministic Judge decides acceptance. Nothing in this
+runner substitutes fixture evidence.
 
-    # from the repo root (a MongoDB must be reachable, see AUTOSOC_MONGO_URI):
-    docker run -d --name autosoc-mongo -p 27017:27017 mongo:7
+    python 99_integration/assembled_runs/run_with_real_red_and_blue.py --preflight-only
     python 99_integration/assembled_runs/run_with_real_red_and_blue.py [--provider none|mock|xai|groq]
 
-Blue uses its deterministic proposer unless a provider is given (or
-AUTOSOC_MODEL_PROVIDER is set). The xAI provider uses XAI_API_KEY; the Groq
-provider uses GROQ_API_KEY or GROQ_KEY. Platform execution remains a mock.
-The database name defaults to ``autosoc_assembled`` (override with AUTOSOC_DB) so the
-shared ``autosoc`` database is not touched.
+Live prerequisites (see README.md next to this file): a reachable MongoDB
+(AUTOSOC_MONGO_URI / MONGODB_URI, database AUTOSOC_DB, default
+``autosoc_assembled``), Splunk settings in the repository .env with TLS
+verification enabled, the frozen set indexed in Splunk, and a complete,
+human-reviewed label set. Each Splunk search asks the operator to type an
+approval bound to that exact search. ``--preflight-only`` makes no network
+calls.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
 import sys
-from importlib import import_module
+from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -42,217 +41,103 @@ if str(ORCHESTRATOR_ROOT) not in sys.path:
 
 from shared_services.controller.round_controller import RoundController  # noqa: E402
 from shared_services.controller.services import (  # noqa: E402
-    ServiceResult,
+    ServiceAdapterError,
     WorkflowComponentAdapter,
 )
-from shared_services.datastore.repository import MongoRepository  # noqa: E402
-
-_workflow_models = import_module("workflow.models")
-BlueInputContext = _workflow_models.BlueInputContext
-WorkflowStepOutput = _workflow_models.WorkflowStepOutput
-
 
 CONTRACTS = REPO_ROOT / "00_shared_contracts"
-BLUE_FIXTURE = (
-    REPO_ROOT / "03_blue_role" / "dev" / "fixtures" / "inputs" / "single_fp.json"
-)
+DEFAULT_EVALUATION_SET = "evalset-demo-lsass-v1"
+HOSTED_PROVIDERS = ("xai", "grok", "groq")
+
+# Platform-owned edit constraints for detections with a prepared demo set.
+# Other detections need --edit-constraints.
+DEFAULT_EDIT_CONSTRAINTS = {
+    "67d4dbef-9564-4699-8da8-03a151529edc": {
+        "allowed_operations": ["add_exclusion"],
+        "allowed_fields": ["SourceImage", "SourceUser", "StartModule", "StartFunction"],
+        "attacker_controllable_fields": ["SourceImage"],
+        "max_edits": 2,
+    },
+}
 
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _build_mock_evidence(request: dict, red_proposal: dict) -> dict:
-    """Build contract-valid smoke evidence from the reviewed Blue fixture."""
-    task_id = request["task_id"]
-    fixture = _load_json(BLUE_FIXTURE)
-    events = []
-    labels = []
-    event_ids = []
-    benign_event_ids = []
-    cases = [
-        *((case, "benign") for case in fixture["false_positives"]),
-        *((case, "attack") for case in fixture["must_detect"]),
-    ]
-    for index, (case, label) in enumerate(cases, start=1):
-        event_id = f"{task_id}-event-{index}"
-        event_ids.append(event_id)
-        events.append(
-            {
-                "event_id": event_id,
-                "timestamp": "2026-11-10T09:00:00Z",
-                "fields": case["observed_fields"],
-            }
-        )
-        labels.append(
-            {
-                "event_id": event_id,
-                "label": label,
-                "source": "lab_telemetry",
-                "scenario_id": f"{task_id}-scenario-{index}",
-                "review": {
-                    "status": "reviewed",
-                    "reviewer": "assembled-smoke-fixture",
-                    "reviewed_at": "2026-11-10T09:00:00Z",
-                },
-            }
-        )
-        if label == "benign":
-            benign_event_ids.append(event_id)
-
-    telemetry = {
-        "contract_version": "0.1.0",
-        "evidence_id": f"evidence-{task_id}",
-        "task_id": task_id,
-        "proposal_id": red_proposal["proposal_id"],
-        "detection_id": request["detection"]["detection_id"],
-        "source": "splunk",
-        "execution": {
-            "execution_id": f"execution-{task_id}",
-            "status": "succeeded",
-            "operation_id": f"operation-{task_id}",
-            "approval_id": f"approval-{task_id}",
-            "started_at": "2026-11-10T09:00:00Z",
-            "completed_at": "2026-11-10T09:00:01Z",
-            "event_count": len(events),
-            "truncated": False,
-        },
-        "events": events,
-    }
-    telemetry["content_sha256"] = hashlib.sha256(
-        json.dumps(
-            telemetry,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    ).hexdigest()
-
-    label_set = {
-        "contract_version": "0.1.0",
-        "label_set_id": f"labels-{task_id}",
-        "label_set_version": "1",
-        "dataset": request["dataset"],
-        "coverage": {"total_events": len(labels), "complete": True},
-        "labels": labels,
-    }
-    baseline = _load_json(
-        CONTRACTS / "candidate_rule" / "examples" / "valid_match_set.json"
-    )
-    baseline.update(
-        match_set_id=f"baseline-{task_id}",
-        task_id=task_id,
-        role="baseline",
-        detection_id=request["detection"]["detection_id"],
-        rule_version=request["detection"]["rule_version"],
-        dataset=request["dataset"],
-        matches=[{"event_id": event_id, "index": "lab_eval"} for event_id in benign_event_ids],
-    )
-    baseline["execution"]["execution_id"] = f"baseline-execution-{task_id}"
-    baseline["execution"]["status"] = "completed"
-    baseline.pop("candidate_ref", None)
-    return {"telemetry": telemetry, "labels": label_set, "baseline": baseline}
-
-
 def _load_adapter(name: str):
     # 99_integration is not an importable name: load the adapter by file path.
+    # Register it before execution so dataclasses and adapter-to-adapter
+    # imports (platform_service -> blue_service) resolve to one module.
+    if name in sys.modules:
+        return sys.modules[name]
     spec = importlib.util.spec_from_file_location(name, REPO_ROOT / "99_integration" / "adapters" / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
     return module
 
 
-class SmokeTestPlatform:
-    """Provide explicit, partial fixture evidence through the Platform interface."""
+def build_round_request(
+    prepared_root: Path,
+    evaluation_set_id: str,
+    *,
+    task_id: str,
+    detection_id: str | None = None,
+    model_id: str,
+) -> dict:
+    """Freeze a round request from a prepared evaluation set and the shared template.
 
-    def __init__(self, blue_adapter):
-        self.blue_adapter = blue_adapter
-        self.evidence = {}
+    The detection and dataset identity come from the prepared set; benign
+    constraints, criteria, and prompt versions come from the shared example.
+    Labels are not read for content here and are never modified.
+    """
+    set_dir = prepared_root / evaluation_set_id
+    if detection_id is None:
+        index = _load_json(set_dir / "detections" / "index.json")
+        if len(index) != 1:
+            raise ValueError(
+                f"{evaluation_set_id} has {len(index)} detections; choose one with --detection-id"
+            )
+        detection_id = index[0]["detection_id"]
+    detection = _load_json(set_dir / "detections" / f"{detection_id}.json")
+    labels = _load_json(set_dir / "labels" / "reviewed_label_set.json")
+    request = _load_json(CONTRACTS / "round_request" / "examples" / "valid_round_request.json")
+    request.pop("permitted_evidence_refs", None)
+    request["task_id"] = task_id
+    request["detection"] = detection
+    request["dataset"] = dict(labels["dataset"])
+    request["versions"]["model_id"] = model_id
+    return request
 
-    def collect_telemetry(self, round_request, _red_proposal):
-        task_id = round_request["task_id"]
-        return WorkflowStepOutput(
-            raw_output_ref=f"smoke://telemetry/{task_id}",
-            raw_output={
-                "task_id": task_id,
-                "source": "fixture",
-                "red_proposal_id": _red_proposal["proposal_id"],
-            },
-            detail="smoke-test fixture collection; not a Splunk execution",
-        )
 
-    def verify_evidence(self, round_request, red_proposal, telemetry_ref):
-        expected_ref = f"smoke://telemetry/{round_request['task_id']}"
-        if telemetry_ref != expected_ref:
-            raise ValueError(f"Unexpected smoke telemetry reference: {telemetry_ref!r}")
-        self.evidence = _build_mock_evidence(round_request, red_proposal)
-        return WorkflowStepOutput(
-            messages={
-                "telemetry_evidence": self.evidence["telemetry"],
-                "reviewed_label_set": self.evidence["labels"],
-                "baseline_match_set": self.evidence["baseline"],
-            },
-            raw_output={"telemetry_ref": telemetry_ref, "fixture_verified": True},
-            detail="contract-valid fixture evidence; baseline has no attack matches",
-        )
+def _model_id(provider: str) -> str:
+    if provider in ("xai", "grok"):
+        return os.environ.get("AUTOSOC_MODEL_ID", "grok-4.7")
+    if provider == "groq":
+        return os.environ.get("GROQ_MODEL_ID", "openai/gpt-oss-20b")
+    return "mock-and-deterministic"
 
-    def build_blue_context(self, round_request, artifacts):
-        task_id = round_request["task_id"]
-        context = self.blue_adapter.blue_input_from_context(
-            {
-                "task_id": task_id,
-                "round_request": dict(round_request),
-                "results": {
-                    "platform_execute": ServiceResult(
-                        "telemetry_evidence", dict(artifacts["telemetry_evidence"])
-                    ),
-                    "platform_labels": ServiceResult(
-                        "reviewed_label_set", dict(artifacts["reviewed_label_set"])
-                    ),
-                    "platform_baseline": ServiceResult(
-                        "match_set", dict(artifacts["baseline_match_set"])
-                    ),
-                },
-            }
-        )
-        return BlueInputContext(
-            evidence_view={
-                "task_id": context["task_id"],
-                "detection_id": context["detection"]["detection_id"],
-                "false_positives": context["false_positives"],
-                "must_detect": context["must_detect"],
-            },
-            edit_constraints=context["edit_constraints"],
-            blue_detection=context["detection"],
-            prior_blue_edits=context.get("prior_blue_edits"),
-        )
 
-    def execute_candidate(self, round_request, blue_proposal, baseline_match_set):
-        if baseline_match_set is None:
-            raise ValueError("Smoke candidate execution requires the verified baseline set")
-        candidate = {}
-        candidate_rule = _compile_mock(
-            {
-                "task_id": round_request["task_id"],
-                "round_request": dict(round_request),
-                "blue_proposal": dict(blue_proposal),
-            },
-            candidate,
-            dict(round_request),
+def _hosted_model_refusal(provider: str, label_sources: list[str], allow_public: bool) -> str | None:
+    """Explain why Splunk-measured telemetry may not go to a hosted model, if so."""
+    if provider not in HOSTED_PROVIDERS:
+        return None
+    if set(label_sources) != {"public_dataset"}:
+        return (
+            "the frozen set contains non-public (lab) telemetry; Blue would send its fields "
+            "to a hosted model. Use --provider none or mock."
         )
-        candidate["matches"]["matches"] = [dict(match) for match in baseline_match_set["matches"]]
-        return WorkflowStepOutput(
-            messages={
-                "candidate_rule": candidate_rule.payload,
-                "candidate_match_set": candidate["matches"],
-            },
-            raw_output={
-                "candidate_execution_id": candidate["matches"]["execution"]["execution_id"],
-                "measurement_status": "fixture",
-            },
-            detail="candidate fixture has no baseline attack matches; Judge must return INCONCLUSIVE",
+    if not allow_public:
+        return (
+            "Blue would send Splunk-measured public-dataset fields to a hosted model. "
+            "Pass --allow-public-telemetry-to-hosted-model to confirm, or use --provider none."
         )
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -264,38 +149,85 @@ def main(argv: list[str] | None = None) -> int:
         help="Hosted provider: xai/grok requires XAI_API_KEY; groq requires GROQ_API_KEY or GROQ_KEY",
     )
     parser.add_argument("--task-id", default=f"assembled-{uuid4().hex}")
+    parser.add_argument("--evaluation-set", default=DEFAULT_EVALUATION_SET)
+    parser.add_argument("--detection-id", default=None)
+    parser.add_argument("--prepared-root", type=Path, default=None)
+    parser.add_argument("--evidence-dir", type=Path, default=None)
+    parser.add_argument("--edit-constraints", type=Path, default=None,
+                        help="JSON edit_constraints for Blue (required for detections without a default)")
+    parser.add_argument("--earliest-time", default="0",
+                        help="Splunk earliest_time for every search (default: all time)")
+    parser.add_argument("--latest-time", default="now")
+    parser.add_argument("--allow-public-telemetry-to-hosted-model", action="store_true")
+    parser.add_argument("--preflight-only", action="store_true",
+                        help="Check configuration, labels, and rule scope; no network calls")
     args = parser.parse_args(argv)
+
+    platform_module = _load_adapter("platform_service")
+    prepared_root = args.prepared_root or platform_module.DEFAULT_PREPARED_ROOT
+    provider = (args.provider or os.environ.get("AUTOSOC_MODEL_PROVIDER") or "").strip().lower()
+
+    try:
+        round_request = build_round_request(
+            prepared_root, args.evaluation_set,
+            task_id=args.task_id, detection_id=args.detection_id, model_id=_model_id(provider),
+        )
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"Cannot freeze a round request from {args.evaluation_set!r}: {exc}")
+        return 2
+    detection_id = round_request["detection"]["detection_id"]
+    if args.edit_constraints is not None:
+        edit_constraints = _load_json(args.edit_constraints)
+    elif detection_id in DEFAULT_EDIT_CONSTRAINTS:
+        edit_constraints = DEFAULT_EDIT_CONSTRAINTS[detection_id]
+    else:
+        print(f"No default edit constraints for {detection_id}; pass --edit-constraints FILE.")
+        return 2
+
+    try:
+        platform = platform_module.build_splunk_platform_service(
+            edit_constraints=edit_constraints,
+            prepared_root=prepared_root,
+            evidence_dir=args.evidence_dir or platform_module.DEFAULT_EVIDENCE_DIR,
+            earliest_time=args.earliest_time,
+            latest_time=args.latest_time,
+        )
+    except ValueError as exc:
+        print(f"Platform configuration refused: {exc}")
+        return 2
+
+    try:
+        readiness = platform.preflight(round_request)
+    except ServiceAdapterError as exc:
+        print(f"Platform preflight failed ({exc.category}): {exc}")
+        print("No round was opened and no Splunk search was requested.")
+        return 2
+    refusal = _hosted_model_refusal(
+        provider, readiness["label_sources"], args.allow_public_telemetry_to_hosted_model
+    )
+    if refusal:
+        print(f"Refusing provider {provider!r}: {refusal}")
+        return 2
+    print(f"Platform preflight passed for {readiness['label_set_id']} "
+          f"({readiness['total_events']} reviewed events).")
+    print(f"  telemetry SPL: {readiness['telemetry_spl']}")
+    print(f"  baseline SPL:  {readiness['baseline_spl']}")
+    if args.preflight_only:
+        return 0
+
+    from shared_services.datastore.repository import MongoRepository
 
     red_service = _load_adapter("red_service")
     blue_service = _load_adapter("blue_service")
     judge_service = _load_adapter("judge_service")
 
-    repo = MongoRepository(
-        db_name=os.environ["AUTOSOC_DB"], fallback_to_mock=False
-    )
+    repo = MongoRepository(db_name=os.environ["AUTOSOC_DB"], fallback_to_mock=False)
     if repo.backend != "mongodb":
         raise RuntimeError("The assembled run requires a persistent MongoDB backend")
     repo.ping()
     repo.ensure_setup()
-    task_id = args.task_id
+    task_id = round_request["task_id"]
 
-    round_request = _load_json(
-        CONTRACTS / "round_request" / "examples" / "valid_round_request.json"
-    )
-    round_request["task_id"] = task_id
-    selected_provider = (
-        args.provider or os.environ.get("AUTOSOC_MODEL_PROVIDER") or ""
-    ).strip().lower()
-    if selected_provider in ("xai", "grok"):
-        round_request["versions"]["model_id"] = os.environ.get(
-            "AUTOSOC_MODEL_ID", "grok-4.7"
-        )
-    elif selected_provider == "groq":
-        round_request["versions"]["model_id"] = os.environ.get(
-            "GROQ_MODEL_ID", "openai/gpt-oss-20b"
-        )
-    else:
-        round_request["versions"]["model_id"] = "mock-and-deterministic"
     services = SimpleNamespace(
         red=WorkflowComponentAdapter(
             red_service.build_red_service(provider=args.provider), "red_proposal"
@@ -303,80 +235,36 @@ def main(argv: list[str] | None = None) -> int:
         blue=WorkflowComponentAdapter(
             blue_service.build_blue_service(provider=args.provider), "blue_proposal"
         ),
-        platform=SmokeTestPlatform(blue_service),
+        platform=platform,
         judge=WorkflowComponentAdapter(
             judge_service.build_judge_service(), "judge_result"
         ),
     )
-    outcome = RoundController(repo, services).run_round(round_request)
-    record = outcome.record
-    print(f"Round {task_id}: {outcome.state}")
-    for artifact, reference in sorted(record.artifacts.items()):
-        print(f"  - {artifact:24} -> {reference}")
-    judge_rows = repo.find_by_task("judge_result", task_id)
-    if judge_rows:
-        print(f"Judge decision: {judge_rows[-1]['decision']['status']}")
-    print(
-        "\nSMOKE TEST ONLY: Platform evidence and candidate execution are "
-        "fixtures. The deterministic Judge ran, but there are no baseline "
-        "attack matches; this cannot produce an acceptance verdict or represent "
-        "measured Splunk results."
-    )
-
-    exit_code = 0 if outcome.state in {"completed", "inconclusive"} else 1
-    red = repo.find_by_task("red_proposal", task_id)
-    if red:
-        print(f"\nReal red_proposal stored: {red[-1]['proposal_id']} ({red[-1]['scenario']['family']})")
-
-    blue = repo.find_by_task("blue_proposal", task_id)
-    if blue:
-        _report_blue(blue[-1])
-    else:
-        print("\nNo blue_proposal stored.")
-        exit_code = 1
-    repo.close()
-    return exit_code
-
-
-def _compile_mock(payload: dict, candidate: dict, request: dict) -> ServiceResult:
-    proposal = payload["blue_proposal"]
-    candidate_rule = _load_json(
-        CONTRACTS / "candidate_rule" / "examples" / "valid_candidate_rule.json"
-    )
-    candidate_id = f"candidate-{payload['task_id']}"
-    candidate_version = f"{request['detection']['rule_version']}-candidate-1"
-    candidate_rule.update(
-        candidate_id=candidate_id,
-        task_id=payload["task_id"],
-        proposal_id=proposal["proposal_id"],
-        detection_id=request["detection"]["detection_id"],
-        base_rule_version=request["detection"]["rule_version"],
-        candidate_rule_version=candidate_version,
-        applied_edit_count=len(proposal["edits"]),
-    )
-    candidate["rule"] = candidate_rule
-
-    matches = _load_json(
-        CONTRACTS / "candidate_rule" / "examples" / "valid_match_set.json"
-    )
-    matches.update(
-        match_set_id=f"candidate-matches-{payload['task_id']}",
-        task_id=payload["task_id"],
-        role="candidate",
-        detection_id=request["detection"]["detection_id"],
-        rule_version=candidate_version,
-        candidate_ref=candidate_id,
-        dataset=request["dataset"],
-    )
-    matches["execution"]["execution_id"] = f"candidate-execution-{payload['task_id']}"
-    matches["execution"]["status"] = "completed"
-    candidate["matches"] = matches
-    return ServiceResult("candidate_rule", candidate_rule)
+    try:
+        outcome = RoundController(repo, services).run_round(round_request)
+        record = outcome.record
+        print(f"Round {task_id}: {outcome.state}")
+        for artifact, reference in sorted(record.artifacts.items()):
+            print(f"  - {artifact:24} -> {reference}")
+        error = getattr(record, "error", None)
+        if isinstance(error, Mapping):
+            print(f"Round error ({error.get('category')}): {error.get('message')}")
+        judge_rows = repo.find_by_task("judge_result", task_id)
+        if judge_rows:
+            print(f"Judge decision (measured on Splunk results): {judge_rows[-1]['decision']['status']}")
+        else:
+            print("No Judge decision: the round stopped before evaluation.")
+        blue = repo.find_by_task("blue_proposal", task_id)
+        if blue:
+            _report_blue(blue[-1])
+        return 0 if outcome.state in {"completed", "inconclusive"} else 1
+    finally:
+        repo.close()
 
 
 def _report_blue(proposal: dict) -> None:
     """Show the exact Blue proposal stored by the workflow."""
-    print(f"\nReal blue_proposal stored: {proposal['proposal_id']}")
+    print(f"\nBlue proposal stored: {proposal['proposal_id']}")
     for e in proposal["edits"]:
         conds = " AND ".join(f"{c['field']} {c['modifier']} {c['values']}" for c in e["conditions"])
         print(f"  {e['operation']}: {conds}")

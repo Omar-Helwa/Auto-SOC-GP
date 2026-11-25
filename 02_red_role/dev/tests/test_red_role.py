@@ -7,6 +7,8 @@ determinism. No live model, orchestrator, blue, judge, or Splunk involved.
 
 from __future__ import annotations
 
+import json
+
 from interfaces.red_role import RedRole
 from schemas import validation
 
@@ -45,6 +47,22 @@ def test_malformed_model_output_returns_validation_error(fixture):
     out, _ = _run(fixture("valid_task.json"), mode="malformed")
     assert validation.validate_error_response(out).ok
     assert out["category"] == "validation"
+
+
+def test_malformed_model_evidence_reference_returns_validation_error(fixture, example):
+    proposal = example("red_proposal", "valid")
+    model_output = {
+        "scenario": proposal["scenario"],
+        "benign_justification": proposal["benign_justification"],
+        "evidence_references": ["invented-reference"],
+    }
+    out, _ = _run(
+        fixture("valid_task.json"),
+        custom_text=json.dumps(model_output),
+    )
+    assert validation.validate_error_response(out).ok
+    assert out["category"] == "validation"
+    assert "malformed evidence reference" in out["message"]
 
 
 def test_refusal_returns_validation_error(fixture):

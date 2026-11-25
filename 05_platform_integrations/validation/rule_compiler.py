@@ -187,12 +187,18 @@ def compile_candidate_rule(
     ).strip()
     if exclusions:
         head, pipeline = _split_spl_pipeline(compiled)
+        body = re.sub(r"^\s*search\s+", "", head, count=1, flags=re.IGNORECASE)
         if pipeline:
-            body = re.sub(r"^\s*search\s+", "", head, count=1, flags=re.IGNORECASE)
             if not body.strip():
                 raise ValueError("base SPL search head has no detection conditions")
             compiled = f"search ({body}) NOT ({') NOT ('.join(exclusions)})"
             compiled += "".join(f" | {segment}" for segment in pipeline)
+        elif body != head:
+            # Keep an explicit leading ``search`` command outside the group:
+            # "(search ...)" is not valid SPL.
+            if not body.strip():
+                raise ValueError("base SPL search head has no detection conditions")
+            compiled = f"search ({body}) NOT ({') NOT ('.join(exclusions)})"
         else:
             compiled = f"({compiled}) NOT ({') NOT ('.join(exclusions)})"
     compiled = _normalize_spl_whitespace(compiled)
@@ -221,6 +227,75 @@ def compile_candidate_rule(
     }
     require_valid_contract(candidate, "candidate_rule")
     return candidate
+
+
+def render_base_rule(base_rule: BaseRule) -> str:
+    """Return the exact SPL the compiler produces for ``base_rule`` with no edits.
+
+    The baseline execution uses this text so baseline and candidate searches
+    share one rendering (selection substitution and whitespace normalization).
+    """
+    rendered = _SELECTION_PLACEHOLDER.sub(
+        lambda match: base_rule.selections[match.group(1)], base_rule.spl_template
+    ).strip()
+    rendered = _normalize_spl_whitespace(rendered)
+    if len(rendered) > 20_000:
+        raise ValueError("rendered SPL exceeds the 20000 character limit")
+    return rendered
+
+
+_STATS_BY = re.compile(r"\sby\s", re.IGNORECASE)
+_BY_FIELD = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+def event_level_search(rule_text: str) -> str:
+    """Project a detection onto the events it alerts on, for event-identity matching.
+
+    Splunk ``stats`` output has no per-event identity, so it cannot be joined
+    to reviewed labels. This returns the rule's search head plus one
+    ``field=*`` presence filter per ``stats ... by`` field: an event
+    contributes to a ``stats by`` row only when every by-field is present.
+    ``convert`` and a final ``search *`` do not filter and are dropped. Any
+    other tail command (for example a ``search`` over aggregated values)
+    would change which events alert, so it is rejected rather than ignored.
+    """
+    if not isinstance(rule_text, str) or not rule_text.strip():
+        raise ValueError("rule_text must be a non-empty string")
+    head, pipeline = _split_spl_pipeline(rule_text)
+    body = re.sub(r"^\s*search\s+", "", head, count=1, flags=re.IGNORECASE).strip()
+    if not body:
+        raise ValueError("rule search head has no detection conditions")
+    presence: list[str] = []
+    seen_stats = False
+    for position, segment in enumerate(pipeline):
+        words = segment.split(None, 1)
+        command = words[0].lower()
+        if command == "convert":
+            continue
+        if command == "search" and len(words) == 2 and words[1].strip() == "*":
+            if position != len(pipeline) - 1:
+                raise ValueError("'search *' is only accepted as the final pipeline command")
+            continue
+        if command == "stats" and not seen_stats:
+            seen_stats = True
+            parts = _STATS_BY.split(segment)
+            if len(parts) > 1:
+                for field in re.split(r"[\s,]+", parts[-1].strip()):
+                    if not field:
+                        continue
+                    if not _BY_FIELD.fullmatch(field):
+                        raise ValueError(f"unsupported stats by-field: {field!r}")
+                    if field not in presence:
+                        presence.append(field)
+            continue
+        raise ValueError(
+            f"pipeline command {command!r} may filter aggregated results; "
+            "an event-level match set cannot be derived from this rule"
+        )
+    projected = f"({body})"
+    if presence:
+        projected += " " + " ".join(f"{field}=*" for field in presence)
+    return _normalize_spl_whitespace(projected)
 
 
 def _conditions_to_spl(conditions: list[Mapping[str, Any]]) -> str:

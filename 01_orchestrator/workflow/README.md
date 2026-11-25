@@ -62,6 +62,6 @@ identity/version matching the frozen request. The Orchestrator does not
 implicitly convert or relabel rule text.
 
 The production Platform service must enforce approved-operation
-authorization. The assembled smoke runner uses partial fixtures and the real
-Judge, so it cannot produce an acceptance verdict or represent measured
-Splunk execution.
+authorization. `99_integration/adapters/platform_service.py` implements this
+protocol over approval-bound Splunk searches. See
+`99_integration/assembled_runs/README.md`.

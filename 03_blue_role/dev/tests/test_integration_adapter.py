@@ -1,4 +1,8 @@
-"""Test the 99_integration Blue adapter and smoke-evidence contract path."""
+"""Test the 99_integration Blue adapter.
+
+The assembled Red + Blue + Platform + Judge round is tested in
+99_integration/contract_tests/test_platform_service.py.
+"""
 
 from __future__ import annotations
 
@@ -72,68 +76,3 @@ def test_blue_input_from_context_maps_round_spl_to_supported_blue_format(adapter
     assert validation.validate_blue_input(blue_input).ok
     assert blue_input["detection"]["rule_format"] == "spl"
     assert blue_input["detection"]["rule_text"] == round_request["detection"]["rule_text"]
-
-
-def test_real_roles_and_judge_run_through_canonical_controller(monkeypatch):
-    import sys
-    from uuid import uuid4
-
-    import mongomock
-
-    if str(REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(REPO_ROOT))
-    import shared_services.datastore.repository as repository_module
-    from shared_services.controller.round_controller import RoundController
-    from shared_services.controller.services import WorkflowComponentAdapter
-    from shared_services.datastore.repository import MongoRepository
-
-    monkeypatch.setattr(repository_module, "MongoClient", mongomock.MongoClient)
-    runner_path = (
-        REPO_ROOT / "99_integration" / "assembled_runs"
-        / "run_with_real_red_and_blue.py"
-    )
-    spec = importlib.util.spec_from_file_location("assembled_smoke_runner", runner_path)
-    runner = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(runner)
-
-    red_adapter = runner._load_adapter("red_service")
-    blue_adapter = runner._load_adapter("blue_service")
-    judge_adapter = runner._load_adapter("judge_service")
-    task_id = f"assembled-smoke-{uuid4().hex}"
-    request = json.loads(
-        (CONTRACTS / "round_request" / "examples" / "valid_round_request.json")
-        .read_text(encoding="utf-8")
-    )
-    request["task_id"] = task_id
-    services = runner.SimpleNamespace(
-        red=WorkflowComponentAdapter(
-            red_adapter.build_red_service(provider="mock"), "red_proposal"
-        ),
-        blue=WorkflowComponentAdapter(
-            blue_adapter.build_blue_service(provider="mock"), "blue_proposal"
-        ),
-        platform=runner.SmokeTestPlatform(blue_adapter),
-        judge=WorkflowComponentAdapter(
-            judge_adapter.build_judge_service(), "judge_result"
-        ),
-    )
-    repo = MongoRepository(db_name=f"autosoc_test_{uuid4().hex}")
-    try:
-        outcome = RoundController(repo, services).run_round(request)
-        judge_rows = repo.find_by_task("judge_result", task_id)
-
-        assert outcome.state == "inconclusive"
-        assert {
-            "red_proposal",
-            "telemetry_evidence",
-            "reviewed_label_set",
-            "baseline_match_set",
-            "blue_proposal",
-            "candidate_rule",
-            "candidate_match_set",
-            "judge_result",
-            "feedback_record",
-        }.issubset(outcome.record.artifacts)
-        assert judge_rows[-1]["decision"]["status"] == "INCONCLUSIVE"
-    finally:
-        repo.close()

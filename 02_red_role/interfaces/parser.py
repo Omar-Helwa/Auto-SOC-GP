@@ -70,9 +70,13 @@ def parse_proposal(raw_text: str, red_input: RedInput, prompt_version: str) -> R
     if not benign_justification:
         raise ParseError("model output missing 'benign_justification'")
 
-    evidence = [
-        EvidenceReference.from_dict(e) for e in data.get("evidence_references", [])
-    ]
+    evidence_refs = data.get("evidence_references", [])
+    if not isinstance(evidence_refs, list):
+        raise ParseError("model output 'evidence_references' must be an array")
+    try:
+        evidence = [EvidenceReference.from_dict(ref) for ref in evidence_refs]
+    except (KeyError, TypeError) as exc:
+        raise ParseError(f"malformed evidence reference: {exc}") from exc
 
     return RedProposal(
         proposal_id=str(uuid.uuid4()),

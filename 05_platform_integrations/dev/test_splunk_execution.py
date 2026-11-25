@@ -97,6 +97,9 @@ class SplunkExecutionTests(unittest.TestCase):
         self.assertEqual(self.server.last_search["latest_time"], ["now"])
         self.assertEqual(self.server.last_search["output_mode"], ["json"])
         self.assertEqual(self.server.last_search["max_count"], ["11"])
+        self.assertEqual(
+            self.server.last_search["output_time_format"], ["%Y-%m-%dT%H:%M:%S.%3N%:z"]
+        )
 
     def test_unapproved_operation_is_rejected_before_splunk_access(self) -> None:
         with self.assertRaisesRegex(SplunkApprovalError, "not approved"):

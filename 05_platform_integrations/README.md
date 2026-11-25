@@ -49,8 +49,10 @@ reference for the raw text. The raw text is returned to the calling component
 and is not written to disk by the gateway.
 
 The assembled runner accepts `--provider xai`, `--provider groq`, or the
-corresponding `AUTOSOC_MODEL_PROVIDER` value. No live provider call is made by
-the test suite.
+corresponding `AUTOSOC_MODEL_PROVIDER` value. Because Blue would send
+Splunk-measured event fields to that provider, the runner refuses a hosted
+provider for sets with lab telemetry. Public-dataset-only sets need an
+explicit opt-in. No live provider call is made by the test suite.
 
 ## Splunk approved execution
 
@@ -204,3 +206,34 @@ For deployments, supply credentials through a secret manager or environment
 configuration; do not commit them to source control. The authorizer should
 resolve and verify approvals independently rather than trusting caller-
 controlled request properties.
+
+`run_baseline_rule` executes the unedited `BaseRule` on the frozen set and
+returns a `baseline` match set. Its approved SPL must equal
+`render_base_rule(base_rule)`, the compiler's rendering of the rule with no
+edits, so the baseline and candidate searches share one rendering.
+
+### Bound approvals, frozen labels, and event-level rules
+
+- `splunk_execution.approval.bound_approval_id(request, index)` derives
+  `apv-<sha256>` from a request's task, task version, operation, proposal,
+  dataset (including the checksum), index scope, time range, and SPL.
+  `ManualCLIApprovalAuthorizer(index, require_binding=True)` refuses a
+  request whose `approval_id` does not match those fields, or that lacks a
+  proposal or a checksummed dataset. Otherwise it prompts with every bound
+  value.
+- `validation.labels.require_judge_ready_label_set(label_set, dataset)`
+  accepts a `reviewed_label_set` only when every one of these holds:
+  it is schema-valid, frozen to the round dataset, `coverage.complete=true`,
+  every label is reviewed with a reviewer, and the event IDs hash to
+  `evaluation_set_checksum` (SHA-256 over the sorted IDs joined by newlines,
+  as the dataset builders write it). It never edits labels.
+- `validation.rule_compiler.event_level_search(rule_text)` returns the
+  rule's search head plus `field=*` filters for its `stats ... by` fields,
+  so that match sets keep per-event identity. It rejects tails that filter
+  aggregated results.
+
+The workflow adapter that uses these pieces lives in
+`99_integration/adapters/platform_service.py`. Its setup and limitations
+are in `99_integration/assembled_runs/README.md`. The local Splunk stub
+accepts an optional `responder(params)` callable, so tests can return
+per-search results through the real client.

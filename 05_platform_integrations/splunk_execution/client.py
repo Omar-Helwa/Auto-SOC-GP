@@ -239,8 +239,10 @@ class SplunkClient:
         if not isinstance(operation, ApprovedSearchRequest):
             raise ValueError("operation must be an ApprovedSearchRequest")
         if not self._authorizer.is_approved(operation):
+            reason = getattr(self._authorizer, "last_refusal", None)
             raise SplunkApprovalError(
                 f"Splunk operation {operation.operation_id!r} is not approved"
+                + (f": {reason}" if isinstance(reason, str) and reason else "")
             )
 
         execution_id = str(uuid4())
@@ -296,6 +298,9 @@ class SplunkClient:
                 "latest_time": latest_time,
                 "max_count": str(self._config.max_events + 1),
                 "output_mode": "json",
+                # Without this, _time follows the Splunk user's display
+                # preferences (for example "... Egypt Standard Time").
+                "output_time_format": "%Y-%m-%dT%H:%M:%S.%3N%:z",
             }
         ).encode("utf-8")
         credentials = base64.b64encode(

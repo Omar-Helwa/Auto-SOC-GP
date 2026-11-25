@@ -45,6 +45,10 @@ _SCHEMAS = {
     / "00_shared_contracts"
     / "telemetry_evidence"
     / "evidence_reference.schema.json",
+    "reviewed_label_set": _REPO_ROOT
+    / "00_shared_contracts"
+    / "telemetry_evidence"
+    / "reviewed_label_set.schema.json",
 }
 
 

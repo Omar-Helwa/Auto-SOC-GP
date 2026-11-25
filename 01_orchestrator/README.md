@@ -96,9 +96,9 @@ Retryable failures are retried up to the frozen per-step limit.
 - Mongo currently stores Orchestrator `audit_record` documents without
   repository-level schema validation because no shared audit schema is
   published.
-- Continue expanding real-component integration tests against measured
-  Platform evidence. The assembled smoke runner uses partial fixtures and
-  cannot produce an acceptance verdict.
+- The assembled runner uses the real Platform adapter
+  (`99_integration/adapters/platform_service.py`). Its tests use a local
+  Splunk stub; a live round needs a human-reviewed evaluation set.
 - Blue accepts `sigma` and `spl`. The Platform's trusted rule-view adapter
   must provide an explicit format and a detection identity/version matching
   the frozen request; there is no implicit conversion or relabeling.

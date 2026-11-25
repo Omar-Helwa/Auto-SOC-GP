@@ -6,7 +6,7 @@ import base64
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import sleep
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -53,9 +53,12 @@ class SplunkStubHandler(BaseHTTPRequestHandler):
         size = int(self.headers.get("Content-Length", "0"))
         params = parse_qs(self.rfile.read(size).decode("utf-8"))
         self.server.last_search = params  # type: ignore[attr-defined]
+        self.server.searches.append(params)  # type: ignore[attr-defined]
+        responder = self.server.responder
+        events = EVENTS if responder is None else responder(params)
         body = "".join(
             json.dumps({"preview": False, "offset": index, "result": event}) + "\n"
-            for index, event in enumerate(EVENTS)
+            for index, event in enumerate(events)
         ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -74,6 +77,12 @@ class SplunkStubServer(ThreadingHTTPServer):
     last_search: dict[str, list[str]] | None = None
     response_mode = "success"
     delay_seconds = 0.2
+    # Optional callable(params) -> list of result records; defaults to EVENTS.
+    responder: Callable[[dict[str, list[str]]], list[dict[str, Any]]] | None = None
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.searches: list[dict[str, list[str]]] = []
 
 
 def create_server() -> SplunkStubServer:
