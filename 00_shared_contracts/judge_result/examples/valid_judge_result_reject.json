@@ -1,0 +1,114 @@
+{
+  "contract_version": "0.1.0",
+  "judge_input_id": "judge-input-case_002",
+  "task_id": "task-002",
+  "evaluation_summary": {
+    "detection_id": "det-login-threshold",
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "eval-002",
+    "total_events": 10,
+    "baseline_rule_version": "v1",
+    "candidate_rule_version": "v2"
+  },
+  "baseline_metrics": {
+    "true_positives": 3,
+    "false_positives": 4,
+    "true_negatives": 1,
+    "false_negatives": 2,
+    "precision": 0.42857142857142855,
+    "recall": 0.6,
+    "accuracy": 0.4,
+    "f1_score": 0.5
+  },
+  "candidate_metrics": {
+    "true_positives": 2,
+    "false_positives": 4,
+    "true_negatives": 1,
+    "false_negatives": 3,
+    "precision": 0.3333333333333333,
+    "recall": 0.4,
+    "accuracy": 0.3,
+    "f1_score": 0.3636363636363636
+  },
+  "comparison": {
+    "retained_matches": [
+      "E02-01",
+      "E02-03",
+      "E02-04",
+      "E02-07",
+      "E02-08",
+      "E02-09"
+    ],
+    "removed_matches": [
+      "E02-10"
+    ],
+    "added_matches": [],
+    "lost_attack_matches": [
+      "E02-10"
+    ],
+    "removed_benign_matches": [],
+    "new_attack_matches": [],
+    "new_benign_matches": [],
+    "false_positives_reduced": 0,
+    "attack_detections_lost": 1,
+    "attack_retention": 0.6666666666666666,
+    "precision_change": -0.09523809523809523,
+    "recall_change": -0.19999999999999996,
+    "accuracy_change": -0.10000000000000003,
+    "f1_change": -0.1363636363636364
+  },
+  "mandatory_gates": [
+    {
+      "gate_id": "attack_retention",
+      "status": "failed",
+      "expected": 1.0,
+      "actual": 0.6666666666666666,
+      "reason": "The candidate lost more attack detections than allowed."
+    },
+    {
+      "gate_id": "new_benign_matches",
+      "status": "passed",
+      "expected_maximum": 0,
+      "actual": 0,
+      "reason": "No excessive new benign matches were introduced."
+    },
+    {
+      "gate_id": "evidence_completeness",
+      "status": "passed",
+      "reason": "Label coverage is complete, every label is reviewed, and every match is labelled."
+    },
+    {
+      "gate_id": "execution_validity",
+      "status": "passed",
+      "reason": "Baseline and candidate executions completed on the same frozen evaluation set."
+    }
+  ],
+  "decision": {
+    "status": "REJECT",
+    "reasons": [
+      "The candidate lost more attack detections than allowed."
+    ],
+    "failed_gates": [
+      "attack_retention"
+    ],
+    "failures": []
+  },
+  "provenance": {
+    "baseline_match_set_id": "ms-baseline-002",
+    "candidate_match_set_id": "ms-candidate-002",
+    "baseline_execution_id": "exec-baseline-002",
+    "candidate_execution_id": "exec-candidate-002",
+    "candidate_ref": "cand-rule-002",
+    "label_set_id": "labels-002",
+    "label_set_version": "1",
+    "criteria": {
+      "minimum_attack_retention": 1.0,
+      "maximum_new_benign_matches": 0
+    },
+    "contract_versions": {
+      "match_set": "0.1.0",
+      "reviewed_label_set": "0.1.0"
+    }
+  }
+}

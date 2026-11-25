@@ -1,0 +1,31 @@
+{
+  "contract_version": "0.1.0",
+  "judge_input_id": "judge-input-case_004",
+  "task_id": "task-004",
+  "decision": {
+    "status": "INCONCLUSIVE",
+    "reasons": [
+      "candidate execution status is 'partial', not 'completed'",
+      "label coverage is marked incomplete (10 labels for 10 events)",
+      "labels not in 'reviewed' status: ['E04-03']"
+    ],
+    "failed_gates": [],
+    "failures": [
+      {
+        "code": "X-5",
+        "kind": "incomplete",
+        "message": "candidate execution status is 'partial', not 'completed'"
+      },
+      {
+        "code": "X-6",
+        "kind": "incomplete",
+        "message": "label coverage is marked incomplete (10 labels for 10 events)"
+      },
+      {
+        "code": "X-6",
+        "kind": "incomplete",
+        "message": "labels not in 'reviewed' status: ['E04-03']"
+      }
+    ]
+  }
+}

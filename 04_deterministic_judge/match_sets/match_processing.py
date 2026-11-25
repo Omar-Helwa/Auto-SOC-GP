@@ -11,11 +11,9 @@ class Comparison:
     new_attack: list[str]
     new_benign: list[str]
 
-def normalize_by_event_id( artifact: Mapping[str, Any], collection_name: str,):
-    """Index an artifact collection by the provisional event_id identity."""
-    return {
-        item["event_id"]: item for item in artifact[collection_name]
-    }
+def normalize_by_event_id(items: list[Mapping[str, Any]]):
+    """Index match or label entries by their shared event_id identity."""
+    return {item["event_id"]: item for item in items}
 
 def compare_matches(
     baseline: Mapping[str, Any],

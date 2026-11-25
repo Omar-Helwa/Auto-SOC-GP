@@ -1,40 +1,76 @@
-
 {
-  "match_set_id": "matches-candidate-001",
+  "contract_version": "0.1.0",
+  "match_set_id": "ms-candidate-001",
   "task_id": "task-001",
-  "evaluation_set_id": "eval-001",
-  "evaluation_set_version": "1.0",
-
+  "role": "candidate",
+  "detection_id": "det-login-threshold",
+  "rule_version": "v2",
+  "candidate_ref": "cand-rule-001",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "eval-001",
+    "evaluation_set_checksum": "ae4b068083f6a6bea8cd5beda764f9baf8bd564b3efc9315bb3fc27c899d5bc4"
+  },
   "execution": {
     "execution_id": "exec-candidate-001",
     "status": "completed",
-    "executed_at": "2026-11-15T10:05:00Z"
+    "search_ref": "splunk-job-candidate-001",
+    "events_scanned": 10
   },
-
-  "rule": {
-    "rule_id": "rule-001",
-    "rule_version": "v2",
-    "proposal_id": "blue-001"
-  },
-
   "matches": [
     {
-      "event_id": "E2",
-      "rule_id": "rule-001",
-      "match_key": "login-threshold",
-      "matched_at": "2026-11-15T10:05:02Z",
-      "evidence_ref": "candidate-evidence-E2"
+      "event_id": "E01-01",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:01Z",
+      "splunk_ref": "lab_eval:E01-01"
     },
     {
-      "event_id": "E4",
-      "rule_id": "rule-001",
-      "match_key": "login-threshold",
-      "matched_at": "2026-11-15T10:05:04Z",
-      "evidence_ref": "candidate-evidence-E4"
+      "event_id": "E01-02",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:02Z",
+      "splunk_ref": "lab_eval:E01-02"
+    },
+    {
+      "event_id": "E01-04",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:03Z",
+      "splunk_ref": "lab_eval:E01-04"
+    },
+    {
+      "event_id": "E01-06",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:04Z",
+      "splunk_ref": "lab_eval:E01-06"
+    },
+    {
+      "event_id": "E01-07",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:05Z",
+      "splunk_ref": "lab_eval:E01-07"
+    },
+    {
+      "event_id": "E01-08",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:06Z",
+      "splunk_ref": "lab_eval:E01-08"
+    },
+    {
+      "event_id": "E01-10",
+      "index": "lab_eval",
+      "sourcetype": "XmlWinEventLog:Security",
+      "event_time": "2026-11-11T10:00:07Z",
+      "splunk_ref": "lab_eval:E01-10"
     }
   ],
-
-  "summary": {
-    "total_matches": 2
+  "evidence_reference": {
+    "evidence_id": "evidence-candidate-001",
+    "evidence_type": "splunk_result"
   }
 }
