@@ -42,7 +42,7 @@ autosoc_blue/
     llm.py             LLM proposer: versioned prompt, JSON-only answer, pre-flight feedback on retry
     validators.py      RuleValidator backed by the local Sigma matcher
     evidence.py        EvidenceSource: none / in-memory
-    gateways/          mock (tests, demo), anthropic, openai; chosen by environment
+    gateways/          mock (tests, demo), plus legacy standalone provider adapters
   prompts/     blue_system.v0_1_0.md, blue_task.v0_1_0.md (package data, versioned)
   contracts/   JSON Schemas shipped with the package (copies of the shared contracts)
   schemas/     typed models + validation;  rule_edits/  apply edits + local Sigma matcher
@@ -167,9 +167,17 @@ canonical (re-rendered, not the original text), so spacing and parenthesisation 
 (ready-to-run SPL for an SPL input). It is off by default so a consumer still holding an older copy of the
 schema is not affected; the platform still compiles and runs the edits itself.
 
-## Use a real model
+## Hosted model in an integrated run
 
-Keys come from environment variables only. Nothing is stored in files.
+The integrated project uses the Platform-owned model gateway, injected by
+`99_integration/adapters/blue_service.py`. Set `AUTOSOC_MODEL_PROVIDER=xai`
+with `XAI_API_KEY` for xAI Grok, or `AUTOSOC_MODEL_PROVIDER=groq` with
+`GROQ_API_KEY` or `GROQ_KEY` for Groq-hosted models, as described in
+[`05_platform_integrations/README.md`](../05_platform_integrations/README.md),
+then run the assembled integration command. Blue itself still supports its
+offline deterministic and mock modes for standalone development.
+
+Legacy direct-provider configuration is retained for standalone compatibility:
 
 | Variable | Meaning |
 |---|---|
@@ -203,6 +211,10 @@ back to the deterministic proposer. A missing key is a clear configuration error
 docker run -d --name autosoc-mongo -p 27017:27017 mongo:7
 python 99_integration/assembled_runs/run_with_real_red_and_blue.py [--provider mock]
 ```
+
+The assembled runner uses contract-valid Platform smoke fixtures and returns an
+`INCONCLUSIVE` mock judge result. It does not execute Splunk or produce a
+measured acceptance verdict.
 
 ## Tests
 

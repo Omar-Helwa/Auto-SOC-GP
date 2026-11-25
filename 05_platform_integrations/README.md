@@ -1,5 +1,57 @@
 # Platform integrations
 
+## Shared model gateway
+
+The shared gateway is owned by Platform and injected into Red and Blue by the
+adapters under `99_integration/`. Blue's standalone deterministic and mock
+providers remain available for offline component tests.
+
+Install the optional hosted-model dependencies:
+
+```powershell
+python -m pip install -r 05_platform_integrations/requirements.txt
+```
+
+Select either xAI's Grok API or Groq-hosted models. Keep their credentials
+separate; `grok` is an alias for the xAI provider, not for Groq.
+
+For xAI:
+
+```dotenv
+XAI_API_KEY=your-xai-api-key
+AUTOSOC_MODEL_PROVIDER=xai
+AUTOSOC_MODEL_ID=grok-4.7
+```
+
+For Groq:
+
+```dotenv
+GROQ_API_KEY=your-groq-api-key
+AUTOSOC_MODEL_PROVIDER=groq
+GROQ_MODEL_ID=openai/gpt-oss-20b
+```
+
+Both providers share the timeout and retry controls:
+
+```dotenv
+AUTOSOC_MODEL_TIMEOUT_SECONDS=60
+AUTOSOC_MODEL_MAX_RETRIES=2
+```
+
+`XAI_API_KEY` and `GROQ_API_KEY` may be loaded from the repository-root `.env`;
+process environment values take precedence. `GROQ_KEY` is also accepted for
+Groq, along with the older `XAI_KEY` alias. Neither Groq variable is used for
+xAI authentication. Both adapters use their provider's Responses API,
+request JSON output, and send `store=false`. SDK retries and timeouts are
+configured centrally. Responses include the provider-reported model id, UTC
+generation timestamp, token counts, provider response id, and a SHA-256
+reference for the raw text. The raw text is returned to the calling component
+and is not written to disk by the gateway.
+
+The assembled runner accepts `--provider xai`, `--provider groq`, or the
+corresponding `AUTOSOC_MODEL_PROVIDER` value. No live provider call is made by
+the test suite.
+
 ## Splunk approved execution
 
 `SplunkClient` accepts an `ApprovedSearchRequest` and a trusted
