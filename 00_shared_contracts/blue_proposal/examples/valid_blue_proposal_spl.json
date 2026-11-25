@@ -1,0 +1,54 @@
+{
+  "contract_version": "0.1.0",
+  "proposal_id": "7e2c1a90-4b6d-4f3e-9c21-5a8d0f6b3e42",
+  "task_id": "round-2026-11-17-001-spl",
+  "prompt_version": "blue-system@0.1.0",
+  "detection_under_test": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0"
+  },
+  "edits": [
+    {
+      "operation": "add_exclusion",
+      "conditions": [
+        {
+          "field": "User",
+          "modifier": "equals",
+          "values": [
+            "CORP\\svc_inventory"
+          ]
+        },
+        {
+          "field": "ParentImage",
+          "modifier": "equals",
+          "values": [
+            "C:\\Windows\\System32\\svchost.exe"
+          ]
+        }
+      ],
+      "reason": "Exclude events where User = CORP\\svc_inventory AND ParentImage = C:\\Windows\\System32\\svchost.exe. This matches the reviewed false positive(s) ev-2026-11-10-fp-inventory-01, and each must-detect event fails at least one of these conditions."
+    }
+  ],
+  "addressed_false_positives": [
+    "ev-2026-11-10-fp-inventory-01"
+  ],
+  "justification": "Exclusion on User = CORP\\svc_inventory AND ParentImage = C:\\Windows\\System32\\svchost.exe: none of the 2 must-detect events satisfies all of these conditions, so they keep matching. Built from the observed fields of the reviewed events (false positives ev-2026-11-10-fp-inventory-01), using allowed fields the attacker does not control.",
+  "expected_effect": "Should stop 1 reviewed false positive(s); the 2 must-detect case(s) should still match (local check only, the judge measures).",
+  "evidence_references": [
+    {
+      "evidence_id": "ev-2026-11-10-fp-inventory-01",
+      "evidence_type": "reviewed_label",
+      "provenance_ref": "platform/evidence_store/ev-2026-11-10-fp-inventory-01"
+    }
+  ],
+  "constraints_ack": {
+    "within_allowed_edits": true,
+    "no_execution": true,
+    "no_verdict": true,
+    "no_judge_criteria_change": true
+  },
+  "edited_rule": {
+    "format": "spl",
+    "text": "index=winlogs (Image=\"*\\\\powershell.exe\" OR Image=\"*\\\\pwsh.exe\") (CommandLine=\"* -enc *\" OR CommandLine=\"* -EncodedCommand *\") NOT (User=\"CORP\\\\svc_inventory\" AND ParentImage=\"C:\\\\Windows\\\\System32\\\\svchost.exe\")"
+  }
+}

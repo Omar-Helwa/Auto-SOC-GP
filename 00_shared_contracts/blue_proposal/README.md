@@ -35,6 +35,7 @@ the judge's acceptance criteria.
 | `evidence_references` | array | `telemetry_evidence` references only, never raw evidence. |
 | `constraints_ack` | object | `within_allowed_edits`, `no_execution`, `no_verdict`, `no_judge_criteria_change`: all `true`. |
 | `rationale` | string | Short reasoning. |
+| `edited_rule` | object | `{format: "sigma"\|"spl", text}`: the base rule with the edits applied, rendered by Blue (e.g. a ready-to-run Splunk search when the input rule was SPL). Informational: the platform still compiles and runs the edits itself and the judge measures; consumers may ignore it. Added additively in 0.1.0. |
 
 ## Edits
 
@@ -62,4 +63,5 @@ the blue input's `edit_constraints` and are enforced by Blue's pre-flight checks
 ## Examples
 
 - Valid: [`examples/valid_blue_proposal.json`](examples/valid_blue_proposal.json)
+- Valid, SPL input with `edited_rule`: [`examples/valid_blue_proposal_spl.json`](examples/valid_blue_proposal_spl.json)
 - Invalid: [`examples/invalid_blue_proposal.json`](examples/invalid_blue_proposal.json) (wildcard value, unknown operation, `narrow_selection` without a target, forbidden `judge_result` field)

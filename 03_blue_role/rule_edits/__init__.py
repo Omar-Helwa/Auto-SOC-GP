@@ -1,6 +1,10 @@
-"""Blue role: deterministic rule editing.
+"""Compatibility alias: ``rule_edits`` is now ``autosoc_blue.rule_edits``."""
 
-- ``apply`` : turn structured edits into a candidate Sigma rule + diff.
-"""
+import sys
 
-from .apply import CandidateRule, EditError, apply_edits, parse_rule  # noqa: F401
+from autosoc_blue import rule_edits as _real
+from autosoc_blue.rule_edits import apply, sigma_match  # noqa: F401
+
+sys.modules["rule_edits.apply"] = apply
+sys.modules["rule_edits.sigma_match"] = sigma_match
+sys.modules[__name__] = _real
