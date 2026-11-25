@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/telemetry_evidence/telemetry_evidence/0.1.0",
+  "title": "VerifiedTelemetryEvidence",
+  "description": "Platform-verified telemetry returned after an approved Splunk operation. Contains measurements and provenance only, never labels or a verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "evidence_id",
+    "task_id",
+    "proposal_id",
+    "detection_id",
+    "source",
+    "execution",
+    "events",
+    "content_sha256"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "detection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "const": "splunk"
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_id",
+        "status",
+        "operation_id",
+        "approval_id",
+        "started_at",
+        "completed_at",
+        "event_count",
+        "truncated"
+      ],
+      "properties": {
+        "execution_id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "const": "succeeded" },
+        "operation_id": { "type": "string", "minLength": 1 },
+        "approval_id": { "type": "string", "minLength": 1 },
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "event_count": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["event_id", "timestamp", "fields"],
+        "properties": {
+          "event_id": { "type": "string", "minLength": 1 },
+          "timestamp": { "type": "string", "minLength": 1 },
+          "fields": { "type": "object" },
+          "host": { "type": "string" },
+          "source": { "type": "string" },
+          "sourcetype": { "type": "string" },
+          "raw": { "type": "string" }
+        }
+      }
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "description": "SHA-256 of the canonical JSON evidence record excluding this field."
+    }
+  }
+}

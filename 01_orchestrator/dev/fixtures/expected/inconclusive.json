@@ -1,0 +1,29 @@
+{
+  "scenario": "inconclusive",
+  "terminal_state": "inconclusive",
+  "outcome": "inconclusive",
+  "attempt_outcomes": {
+    "red_proposed": [
+      "succeeded"
+    ],
+    "telemetry_collected": [
+      "succeeded"
+    ],
+    "evidence_verified": [
+      "succeeded"
+    ],
+    "blue_proposed": [
+      "succeeded"
+    ],
+    "candidate_executed": [
+      "succeeded"
+    ],
+    "judged": [
+      "succeeded"
+    ]
+  },
+  "required_storage": [
+    "round_record",
+    "audit_records"
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/candidate_rule/candidate_rule/0.1.0",
+  "title": "CandidateRule",
+  "description": "The validated and compiled candidate rule produced by the Platform from a blue_proposal. It is what match_set.candidate_ref points to (candidate_id). It records the rule that was executed, never its results: matches travel in a separate match_set (role=candidate) and the decision in judge_result. It must not contain matches, labels, metrics or a verdict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "candidate_id",
+    "task_id",
+    "proposal_id",
+    "detection_id",
+    "base_rule_version",
+    "candidate_rule_version",
+    "compiled_rule",
+    "validation"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "const": "0.1.0"
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique id of this candidate. Referenced by match_set.candidate_ref."
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "proposal_id of the blue_proposal this candidate was built from."
+    },
+    "detection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_rule_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Must equal the rule_version of the baseline match_set."
+    },
+    "candidate_rule_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Must equal the rule_version of the candidate match_set."
+    },
+    "applied_edit_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Number of blue_proposal edits applied (bounded like blue_proposal.edits)."
+    },
+    "compiled_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "text",
+        "sha256"
+      ],
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": [
+            "splunk_spl"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "description": "The exact compiled search that Splunk executes."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$",
+          "description": "SHA-256 of compiled_rule.text, for audit and reproducibility."
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "description": "Outcome of Platform schema/scope/permission/compile checks. Rejected proposals are reported as error_response and never become a candidate_rule.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "passed"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "validated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "evidence_reference": {
+      "$ref": "autosoc://contracts/telemetry_evidence/evidence_reference/0.1.0"
+    }
+  }
+}

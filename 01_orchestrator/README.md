@@ -1,132 +1,139 @@
 # Orchestrator
 
-The orchestrator's current implementation is the **round management core** for AutoSOC Architecture 1. It creates rounds from validated requests, tracks the fixed workflow state, records attempts and artifact references when provided, and closes rounds as completed, failed, or inconclusive.
+The Orchestrator opens and manages one detection-improvement round. It freezes
+the accepted `round_request`, coordinates the Red, Platform, Blue, and Judge
+steps through `RoundWorkflow`, validates each contract boundary, stores
+artifacts by reference, and closes the round as completed, failed, or
+inconclusive. It does not calculate the Judge's decision.
 
-This package does not call the red role, platform, blue role, or judge. Callers provide component results and advance the round. The storage interface is intentionally separate so a database-backed store can be added later.
+The Python workflow is implemented, and a mock-only full-round runner is
+available. Production use still needs real services to be supplied through the
+`WorkflowServices` interface; this folder does not contain a production
+composition for the component clients.
 
-## Requirements
+## Requirements and commands
 
-- Python 3.7 or newer
-- No third-party Python packages
+- Python 3.10 or newer
+- Install dependencies with `python -m pip install -r requirements.txt`.
+- Run commands from this `01_orchestrator` directory.
 
-See [`requirements.txt`](requirements.txt).
-
-## Package layout
-
-- `round_management/models.py` — round configuration, transition, attempt, and record data models; validation and serialization.
-- `round_management/states.py` — Architecture 1 states and allowed transitions.
-- `round_management/errors.py` — round-management exceptions and accepted round error categories.
-- `round_management/store.py` — storage interface, in-memory store, and JSON-file store.
-- `round_management/manager.py` — lifecycle operations, attempts, retries, timeouts, terminal outcomes, and integrity checks.
-- `round_management/__init__.py` — public package exports.
-- `dev/tests/` — isolated unit tests.
-
-## Round lifecycle
-
-The normal state sequence is:
-
-```text
-CREATED
-  -> RED_PROPOSED
-  -> TELEMETRY_COLLECTED
-  -> EVIDENCE_VERIFIED
-  -> BLUE_PROPOSED
-  -> CANDIDATE_EXECUTED
-  -> JUDGED
-  -> COMPLETED
-```
-
-Any nonterminal state can instead end as `FAILED` or `INCONCLUSIVE`. Skips and backward transitions are rejected.
-
-## Basic use
-
-Run commands from the `01_orchestrator` directory so `round_management` is importable.
-
-```python
-from round_management import InMemoryRoundStore, RoundManager, RoundState
-
-request = {
-    "task_id": "task-001",
-    "detection": {"name": "suspicious_powershell", "spl": "index=win EventCode=4688"},
-    "dataset_ref": "dataset://lab/v1",
-    "criteria": {"min_fp_reduction": 0.2, "max_attack_loss": 0},
-    "versions": {
-        "prompt": "p1",
-        "model": "m1",
-        "rule": "r1",
-        "dataset": "d1",
-        "criteria": "c1",
-        "contracts": "v1",
-    },
-}
-
-manager = RoundManager(InMemoryRoundStore())
-round_record = manager.create_round(request)
-round_id = round_record.round_id
-
-# An attempt targets the next state. Recording attempts is optional for callers.
-manager.begin_attempt(round_id)
-manager.finish_attempt(
-    round_id,
-    "succeeded",
-    raw_output_ref="audit://round-001/red-output",
-)
-manager.advance(
-    round_id,
-    RoundState.RED_PROPOSED,
-    artifact_name="red_proposal",
-    artifact_ref="audit://round-001/red-output",
-)
-```
-
-Repeat `advance()` for each state in order. Use `fail()` or `mark_inconclusive()` to close early. After advancing to `JUDGED`, close with the judge's decision and a feedback reference:
-
-```python
-manager.complete(round_id, "pass", "feedback://round-001")
-manager.verify_integrity(round_id)
-```
-
-The manager records the supplied judge decision; it does not calculate or validate the judge's decision against a judge-result payload.
-
-## Requests and configuration
-
-Required request fields are `task_id`, `detection`, `dataset_ref`, `criteria`, and `versions`. `versions` must contain nonempty strings for `prompt`, `model`, `rule`, `dataset`, `criteria`, and `contracts`.
-
-Optional fields:
-
-- `max_attempts_per_step` — positive integer; defaults to `2`.
-- `step_timeout_seconds` — positive integer; defaults to `300`.
-
-Detection, criteria, versions, and error details must be strict JSON data. Config mappings and nested lists are frozen after validation. A config fingerprint is stored with each round.
-
-## Attempts, retries, and timeouts
-
-`begin_attempt()` records a running attempt for the next workflow state. `finish_attempt()` records it as `succeeded` or `failed`, with an optional raw-output reference. Failed attempts remain in the log; if the last configured attempt fails, the round closes as `FAILED`. After a successful attempt, the caller advances the round with `advance()`.
-
-Timeouts apply per state, not per attempt. The timer starts when a round is created and resets on each state transition, so retries in the same state share the timeout. The manager checks timeouts when beginning or finishing an attempt and when accepting a state transition. `enforce_timeout()` can also be called by a polling loop. A timeout check on a closed round returns `False`.
-
-Callers may advance without recording attempts. In that case, the transition is recorded, but no per-attempt history exists for that step.
-
-## Storage
-
-For tests or temporary use, pass `InMemoryRoundStore()`. For local JSON persistence, pass a directory to `JsonFileRoundStore`:
-
-```python
-from round_management import JsonFileRoundStore, RoundManager
-
-manager = RoundManager(JsonFileRoundStore("dev/temp_outputs/rounds"))
-```
-
-The JSON store creates the directory if needed, stores one JSON file per round, checks record revisions to reject stale writes, and uses a lock file while writing. `list_ids()` returns the stored round IDs. Keep disposable development output under `dev/temp_outputs/`.
-
-`verify_integrity()` checks internal consistency among the config fingerprint, transition history, timestamps, attempts, artifacts, and outcome/error fields. It detects accidental or partial inconsistency; it is not cryptographic protection against deliberate edits to the saved record.
-
-## Tests
-
-From `01_orchestrator`, run:
+Run the complete Orchestrator test suite:
 
 ```powershell
 python -m unittest discover -s dev/tests -v
 ```
 
-The tests use in-memory storage, temporary directories, and a fake clock; they do not need live model, platform, Splunk, or judge services.
+The suite exercises in-memory and Mongo persistence, contract checks, mock
+round outcomes, and a fresh-workflow reload. Mongo integration tests are
+skipped when no MongoDB server is reachable. The successful end-to-end round
+uses mocks; it does not prove compatibility with the real Blue or Judge
+interfaces.
+
+Run a mock round in memory:
+
+```powershell
+python -m dev.sandbox.run_mock_round --scenario pass
+```
+
+See [`dev/sandbox/README.md`](dev/sandbox/README.md) for all scenarios and Mongo
+options.
+
+## Package layout
+
+- [`round_management/`](round_management/): frozen request model, round state
+  machine, attempt/retry policy, and in-memory, JSON-file, and Mongo stores.
+- [`interfaces/`](interfaces/): input/output builders, contract validation,
+  artifact storage adapters, and cross-contract evidence checks.
+- [`workflow/`](workflow/): service protocols, workflow runner, and production
+  Mongo composition helper.
+- [`audit_records/`](audit_records/): immutable event model and Mongo/in-memory
+  audit stores.
+- [`feedback_store/`](feedback_store/): query facade for shared feedback
+  records and the artifacts they reference; it does not duplicate records.
+- [`dev/`](dev/): fixed fixtures, mock services, tests, and sandbox runner.
+
+## Round lifecycle
+
+```text
+CREATED -> RED_PROPOSED -> TELEMETRY_COLLECTED -> EVIDENCE_VERIFIED
+        -> BLUE_PROPOSED -> CANDIDATE_EXECUTED -> JUDGED
+        -> COMPLETED (PASS or REJECT)
+```
+
+Any nonterminal state can instead end as `FAILED` or `INCONCLUSIVE`. The
+Orchestrator requires each forward step in order. `INCONCLUSIVE` from the
+Judge is a valid Judge outcome; missing required evidence can also cause the
+Orchestrator to close a round as inconclusive before calling the Judge.
+
+`task_id` is also the round ID. The frozen request contains detection, benign
+constraints, dataset identity, Judge criteria, pinned versions, optional
+permitted evidence references, and attempt/step-time limits. The schemas in
+`00_shared_contracts/` define the canonical message shapes where published.
+
+## Workflow and storage
+
+`create_mongo_workflow(repository, services)` initializes repository
+collections and round indexes, then wires Mongo-backed round, contract
+artifact, and audit stores to that repository. Use this factory for durable
+production persistence. `create_workflow(...,
+allow_non_mongo_stores=True)` is intended for tests and development.
+
+The `services` argument must provide `red.run`, `blue.run`, `judge.run`, and
+the Platform methods listed in [`workflow/services.py`](workflow/services.py).
+The workflow stores the accepted `round_request`, component contract outputs,
+feedback record, audit events, and references to those records. `RoundManager`
+is authoritative for the round's state and transition history.
+
+The workflow retries classified retryable failures up to the frozen per-step
+limit. Step timeouts are detected by the round manager, but a timed-out
+synchronous service call is not forcibly cancelled. See the production gaps
+below before relying on the timeout as a hard execution bound.
+
+## Current production gaps
+
+- **Real service composition (item 4):** production Red, Blue, Judge, and
+  Platform clients are not bound in this folder. An application composition
+  must inject them and provide Platform's approved-search authorization.
+- **Timeout enforcement (item 6):** the manager detects an expired step, but
+  the workflow cannot stop a synchronous call that is still blocked.
+- **Restart recovery (item 7):** a process crash can leave an attempt marked
+  `running`; there is no stale-attempt recovery policy yet.
+- **Partial writes (item 8):** exact-payload retries reuse saved artifacts,
+  but failed multi-document writes can leave unreferenced Mongo documents.
+  No cleanup or transaction strategy is implemented.
+- **Audit store selection (item 9):** `create_mongo_workflow()` selects Mongo
+  audit storage. A caller that builds Mongo stores through the lower-level
+  `create_workflow()` must explicitly supply a Mongo audit writer or audit
+  events remain in memory.
+- **Audit schema validation (item 10):** Mongo currently reports that no
+  `audit_record` schema is published and stores those documents unvalidated.
+  The shared contract and repository need that schema registered before Mongo
+  can validate Orchestrator audit records.
+- **Real-component integration tests (item 11):** full-round tests use mock
+  services. Blue's Sigma handoff and the Judge's real input/output round trip
+  are not covered by an integration test.
+- **Judge input contract:** the shared project defines `judge_result`, but no
+  shared Judge-input contract. The temporary Orchestrator bundle currently
+  differs from the input shape required by the deterministic Judge. Agree on
+  and implement that handoff before connecting the real Judge.
+- **Blue input:** the round request contains Splunk SPL, while Blue requires
+  Sigma. Supply a trusted, matching Sigma representation; the Orchestrator
+  does not convert or relabel SPL. The edit-constraint policy is also not
+  versioned in the frozen round request.
+
+The detailed interface limitations are in
+[`workflow/README.md`](workflow/README.md) and
+[`interfaces/outputs/README.md`](interfaces/outputs/README.md).
+
+## Integrity and feedback
+
+`RoundManager.verify_integrity(round_id)` checks the persisted request
+fingerprint, state history, timestamps, attempts, artifacts, and terminal
+outcome. It detects inconsistent records; it is not a protection against
+deliberate database edits.
+
+After a Judge result is accepted, the workflow persists a shared
+`feedback_record` before closing the round. `workflow.outputs.feedback_store`
+can retrieve that record and resolve its linked artifacts. Its
+`retrieval_eligible` hint is true only for a `PASS`; automatic feedback-memory
+selection and prompt updates are not implemented.

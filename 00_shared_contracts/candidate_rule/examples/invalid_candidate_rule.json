@@ -1,0 +1,20 @@
+{
+  "contract_version": "0.1.0",
+  "candidate_id": "cand-rule-0002",
+  "task_id": "round-001",
+  "proposal_id": "6d1b0c9e-2f4a-4e7b-9a35-0c8e5f7d2a11",
+  "detection_id": "det-susp-powershell",
+  "base_rule_version": "1.0.0",
+  "compiled_rule": {
+    "language": "kql",
+    "text": "x",
+    "sha256": "abc"
+  },
+  "validation": {
+    "status": "rejected"
+  },
+  "matches": [
+    "evt-0007"
+  ],
+  "_why_invalid": "missing candidate_rule_version, unsupported language 'kql', malformed sha256, validation.status 'rejected' (rejections are error_response), and a forbidden 'matches' field."
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://orchestrator/interfaces/telemetry_evidence/0.1.0",
+  "title": "Temporary Orchestrator Telemetry Evidence Envelope",
+  "description": "TEMPORARY adapter envelope only. Replace with the Platform-owned shared telemetry_evidence contract when published. The evidence body remains in the platform evidence store.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "evidence_id", "task_id", "detection_id", "evidence_type", "evidence_ref", "verified"],
+  "properties": {
+    "contract_version": { "type": "string", "const": "0.1.0" },
+    "evidence_id": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "minLength": 1 },
+    "detection_id": { "type": "string", "minLength": 1 },
+    "evidence_type": { "type": "string", "enum": ["splunk_result", "reviewed_label", "telemetry"] },
+    "evidence_ref": { "type": "string", "minLength": 1 },
+    "verified": { "type": "boolean", "const": true },
+    "provenance_ref": { "type": "string", "minLength": 1 }
+  }
+}

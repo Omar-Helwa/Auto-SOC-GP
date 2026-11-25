@@ -13,7 +13,7 @@ import sys
 
 from ..config import DB_NAME, MONGO_URI
 from ..datastore.repository import MongoRepository
-from ..datastore.schema_registry import available_contracts, missing_contracts
+from ..datastore.schema_registry import available_contracts, missing_contracts, temporary_contracts
 
 
 def main() -> int:
@@ -27,8 +27,9 @@ def main() -> int:
     created = repo.ensure_setup()
     print(f"Connected to {MONGO_URI}, database '{DB_NAME}'.")
     print(f"Collections created this run: {created or 'none (already present)'}")
-    print(f"Validated contracts (schema present):   {available_contracts()}")
-    print(f"Stored-unvalidated (schema pending):    {missing_contracts()}")
+    print(f"Validated messages (schema present):    {available_contracts()}")
+    print(f"Temporary schema fallbacks in use:       {temporary_contracts() or 'none'}")
+    print(f"Stored-unvalidated (schema pending):     {missing_contracts()}")
     repo.close()
     return 0
 

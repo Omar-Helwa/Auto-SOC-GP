@@ -1,0 +1,105 @@
+{
+  "contract_version": "0.1.0",
+  "status": "DRAFT",
+  "proposed_by": "Orchestrator (Member 1)",
+  "needs_review_by": [
+    "Member 4 (judge)",
+    "Member 5 (platform)"
+  ],
+  "description": "Rules that JSON Schema cannot express. Each producer checks its own output before emitting; the Orchestrator re-runs the cross-contract rules before calling the Judge. kind 'invalid' = contract violation (stop with an error_response). kind 'incomplete' = well-formed but evidence is missing (the Judge returns 'inconclusive').",
+  "ref_resolution": "Schemas reference each other by $id (autosoc://contracts/...), which is not a fetchable URL. A validator must be given a registry built from every *.schema.json under 00_shared_contracts/, keyed by $id.",
+  "rules": [
+    {
+      "id": "MS-1",
+      "applies_to": [
+        "match_set"
+      ],
+      "rule": "matches[].event_id values are unique",
+      "kind": "invalid"
+    },
+    {
+      "id": "LS-1",
+      "applies_to": [
+        "reviewed_label_set"
+      ],
+      "rule": "labels[].event_id values are unique",
+      "kind": "invalid"
+    },
+    {
+      "id": "LS-2",
+      "applies_to": [
+        "reviewed_label_set"
+      ],
+      "rule": "coverage.complete is true only if len(labels) == coverage.total_events",
+      "kind": "invalid"
+    },
+    {
+      "id": "LS-3",
+      "applies_to": [
+        "reviewed_label_set"
+      ],
+      "rule": "len(labels) <= coverage.total_events",
+      "kind": "invalid"
+    },
+    {
+      "id": "CR-1",
+      "applies_to": [
+        "candidate_rule"
+      ],
+      "rule": "compiled_rule.sha256 equals the SHA-256 (UTF-8, hex) of compiled_rule.text",
+      "kind": "invalid"
+    },
+    {
+      "id": "X-1",
+      "applies_to": [
+        "match_set (baseline)",
+        "match_set (candidate)"
+      ],
+      "rule": "baseline input has role 'baseline' and candidate input has role 'candidate'",
+      "kind": "invalid"
+    },
+    {
+      "id": "X-2",
+      "applies_to": [
+        "match_set",
+        "reviewed_label_set"
+      ],
+      "rule": "task_id and detection_id agree across the two match sets; dataset_id, dataset_version, evaluation_set_id (and evaluation_set_checksum when present) agree across both match sets and the label set",
+      "kind": "incomplete"
+    },
+    {
+      "id": "X-3",
+      "applies_to": [
+        "match_set",
+        "candidate_rule"
+      ],
+      "rule": "baseline rule_version == base_rule_version; candidate rule_version == candidate_rule_version; candidate_ref == candidate_id; detection_id and task_id agree",
+      "kind": "invalid"
+    },
+    {
+      "id": "X-4",
+      "applies_to": [
+        "match_set",
+        "reviewed_label_set"
+      ],
+      "rule": "every matched event_id (baseline or candidate) has a label",
+      "kind": "incomplete"
+    },
+    {
+      "id": "X-5",
+      "applies_to": [
+        "match_set"
+      ],
+      "rule": "execution.status == 'completed' for both match sets",
+      "kind": "incomplete"
+    },
+    {
+      "id": "X-6",
+      "applies_to": [
+        "reviewed_label_set"
+      ],
+      "rule": "coverage.complete is true and no label has review.status 'disputed' or 'unreviewed'",
+      "kind": "incomplete"
+    }
+  ]
+}

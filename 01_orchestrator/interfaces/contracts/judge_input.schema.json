@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://orchestrator/interfaces/judge_input/0.1.0",
+  "title": "Temporary Orchestrator Judge Evidence Bundle",
+  "description": "TEMPORARY outer handoff shape used because no shared Judge-input schema exists. The nested baseline_match_set, candidate_match_set, and reviewed_label_set values are the original published shared-contract messages, not Judge-specific projections. Criteria are copied from the frozen round_request; versions are Orchestrator audit metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "task_id", "detection_id", "baseline_match_set", "candidate_match_set", "reviewed_label_set", "criteria", "versions"],
+  "properties": {
+    "contract_version": { "type": "string", "const": "0.1.0" },
+    "task_id": { "type": "string", "minLength": 1 },
+    "detection_id": { "type": "string", "minLength": 1 },
+    "baseline_match_set": { "$ref": "autosoc://contracts/candidate_rule/match_set/0.1.0" },
+    "candidate_match_set": { "$ref": "autosoc://contracts/candidate_rule/match_set/0.1.0" },
+    "reviewed_label_set": { "$ref": "autosoc://contracts/telemetry_evidence/reviewed_label_set/0.1.0" },
+    "criteria": { "type": "object", "minProperties": 1 },
+    "versions": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string", "minLength": 1 } }
+  }
+}

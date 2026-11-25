@@ -1,10 +1,10 @@
-# `shared_services/` — datastore + controller (team infrastructure)
+# `shared_services/` - datastore + controller (team infrastructure)
 
-MongoDB persistence for every shared contract, plus a controller that relays a
-round's data between the services in Architecture 1 order. Depends on **no**
-member's component (01–05) — only on the contract schemas in
-`00_shared_contracts/`. Owned by the team; coordinate changes with the
-Orchestrator (M1) and Platform (M5) owners.
+MongoDB persistence for shared contract messages and auxiliary round/audit
+records, plus a controller that relays round data in Architecture 1 order.
+Validation uses shared schemas, with an explicit temporary Orchestrator telemetry
+schema fallback until the canonical shared contract is published.
+Owned by the team; coordinate changes with the Orchestrator (M1) and Platform (M5).
 
 ## Layout
 
@@ -26,25 +26,31 @@ shared_services/
 
 ## The "DB schema"
 
-One collection per contract (see `config.CONTRACT_COLLECTIONS`):
+One collection per stored contract message (see `config.CONTRACT_COLLECTIONS`):
 
 | Contract | Collection | Validated on write? |
 |----------|-----------|---------------------|
-| round_request | `round_requests` | pending (no schema yet) |
+| round_request | `round_requests` | ✅ yes |
 | red_proposal | `red_proposals` | ✅ yes |
-| telemetry_evidence | `telemetry_evidence` | pending (M5) |
-| blue_proposal | `blue_proposals` | pending (M3) |
-| candidate_rule | `candidate_rules` | pending (M5) |
-| judge_result | `judge_results` | pending (M4) |
-| feedback_record | `feedback_records` | pending (M1) |
+| telemetry_evidence | `telemetry_evidence` | temporary Orchestrator envelope schema until the shared schema is published |
+| reviewed_label_set | `reviewed_label_sets` | yes |
+| blue_proposal | `blue_proposals` | ✅ yes |
+| candidate_rule | `candidate_rules` | ✅ yes (draft) |
+| match_set | `match_sets` | yes |
+| judge_result | `judge_results` | yes |
+| feedback_record | `feedback_records` | yes |
 | error_response | `error_responses` | ✅ yes |
 | red_input (aux) | `red_inputs` | ✅ yes |
+| audit_record (aux) | `audit_records` | no: Orchestrator audit document |
+| round_record (aux) | `rounds` | no: orchestrator state, written by `MongoRoundStore` |
 
 Validation is **app-layer**: a document is checked against its contract's schema
 before insert (`ContractViolation` is raised on failure). Contracts without a
-published schema are stored unvalidated with a warning, and begin validating
-automatically once their owner drops a `*.schema.json` into the contract folder —
-no code change needed.
+published schema are stored unvalidated with a warning. The init script reports
+temporary schema fallbacks separately; those must be replaced when the canonical
+shared schema is published.
+The temporary telemetry fallback reads the existing Orchestrator interface schema
+and is replaced after restart when the canonical shared schema is added.
 
 ## Setup & run
 

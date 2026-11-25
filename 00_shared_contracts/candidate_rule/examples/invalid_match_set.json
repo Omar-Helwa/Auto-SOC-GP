@@ -1,0 +1,25 @@
+{
+  "contract_version": "0.1.0",
+  "match_set_id": "ms-0002",
+  "task_id": "round-001",
+  "role": "baseline",
+  "candidate_ref": "cand-rule-0001",
+  "detection_id": "det-susp-powershell",
+  "rule_version": "1.0.0",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1"
+  },
+  "execution": {
+    "execution_id": "exec-0001",
+    "status": "ok"
+  },
+  "match_count": 1,
+  "matches": [
+    {
+      "event_id": "evt-0007"
+    }
+  ],
+  "verdict": "pass",
+  "_why_invalid": "candidate_ref on a baseline match set, missing dataset.evaluation_set_id, unknown execution.status 'ok', and a forbidden 'verdict' field."
+}

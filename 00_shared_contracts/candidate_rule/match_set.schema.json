@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/candidate_rule/match_set/0.1.0",
+  "title": "MatchSet",
+  "description": "The set of events matched by ONE rule (baseline or candidate) when executed by the Platform on the frozen evaluation set. Measured output only: it must never contain labels, metrics, or an acceptance verdict. Baseline and candidate match sets are compared by event identity (event_id), never by counts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "match_set_id",
+    "task_id",
+    "role",
+    "detection_id",
+    "rule_version",
+    "dataset",
+    "execution",
+    "matches"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "const": "0.1.0"
+    },
+    "match_set_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique id for this match set (UUID recommended)."
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Round/task identifier. Baseline and candidate sets of one round share it."
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "baseline",
+        "candidate"
+      ]
+    },
+    "detection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rule_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Version of the rule that was executed. For role=baseline this is the base rule version; for role=candidate it is the candidate rule version."
+    },
+    "candidate_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "candidate_id of the candidate_rule artifact (autosoc://contracts/candidate_rule/candidate_rule/0.1.0) that produced these matches. Required when role=candidate, forbidden when role=baseline."
+    },
+    "dataset": {
+      "$ref": "#/$defs/dataset_ref"
+    },
+    "execution": {
+      "$ref": "#/$defs/execution"
+    },
+    "matches": {
+      "type": "array",
+      "description": "One entry per matched event.",
+      "items": {
+        "$ref": "#/$defs/match"
+      }
+    },
+    "evidence_reference": {
+      "$ref": "autosoc://contracts/telemetry_evidence/evidence_reference/0.1.0",
+      "description": "Reference to the stored immutable evidence for this execution."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "candidate"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "candidate_ref"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "baseline"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "candidate_ref"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "dataset_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset_id",
+        "dataset_version",
+        "evaluation_set_id"
+      ],
+      "properties": {
+        "dataset_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dataset_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evaluation_set_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of the FROZEN evaluation set. Baseline and candidate must carry the same value or the judge returns inconclusive."
+        },
+        "evaluation_set_checksum": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$",
+          "description": "Optional SHA-256 of the frozen set contents."
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_id",
+        "status"
+      ],
+      "properties": {
+        "execution_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "partial",
+            "failed",
+            "timeout"
+          ],
+          "description": "Anything other than 'completed' makes the evidence incomplete (judge: inconclusive)."
+        },
+        "search_ref": {
+          "type": "string",
+          "description": "Splunk search/job reference."
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "events_scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable event identity, deterministic and identical across the baseline and candidate runs and equal to the event_id used in reviewed_label_set."
+        },
+        "index": {
+          "type": "string"
+        },
+        "sourcetype": {
+          "type": "string"
+        },
+        "event_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "splunk_ref": {
+          "type": "string",
+          "description": "Raw Splunk locator (for example index plus _cd). Reference only."
+        }
+      }
+    }
+  }
+}

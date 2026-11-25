@@ -14,6 +14,24 @@
       "maxLength": 256,
       "description": "Reference checked by the trusted operation authorizer before Splunk access."
     },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Optional proposal binding. Proposal execution operations require it to match the proposal being processed."
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset_id", "dataset_version", "evaluation_set_id"],
+      "description": "Optional frozen evaluation-set reference. Candidate execution requires the trusted approval to bind to this dataset.",
+      "properties": {
+        "dataset_id": { "type": "string", "minLength": 1 },
+        "dataset_version": { "type": "string", "minLength": 1 },
+        "evaluation_set_id": { "type": "string", "minLength": 1 },
+        "evaluation_set_checksum": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+      }
+    },
     "spl": {
       "type": "string",
       "minLength": 1,

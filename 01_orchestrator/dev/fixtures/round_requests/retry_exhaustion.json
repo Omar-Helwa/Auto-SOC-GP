@@ -1,0 +1,61 @@
+{
+  "contract_version": "0.1.0",
+  "task_id": "dev-retry-exhaustion",
+  "detection": {
+    "detection_id": "win-encoded-powershell",
+    "rule_version": "3.2.0",
+    "description": "Flags powershell.exe invoked with -EncodedCommand / -enc.",
+    "logic_summary": "Alerts when a process named powershell.exe runs with an -EncodedCommand (or -enc) argument whose decoded length exceeds 64 bytes.",
+    "rule_language": "splunk_spl",
+    "rule_text": "index=lab_eval sourcetype=XmlWinEventLog Image=*powershell.exe CommandLine=*-enc*"
+  },
+  "benign_constraints": {
+    "allowed_scenario_families": [
+      "admin_automation",
+      "it_maintenance",
+      "developer_activity"
+    ],
+    "max_workflow_steps": 5,
+    "allowed_actions": [
+      "scheduled_task",
+      "script_execution",
+      "process_execution",
+      "file_operation"
+    ],
+    "forbidden_notes": [
+      "No real malware or live C2.",
+      "Stay on the lab host only."
+    ]
+  },
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "evalset-01"
+  },
+  "criteria": {
+    "criteria_id": "criteria-001",
+    "criteria_version": "1.0",
+    "thresholds": {
+      "minimum_attack_retention": 1.0,
+      "maximum_new_benign_matches": 0
+    }
+  },
+  "versions": {
+    "red_prompt": "red-system@0.1.0",
+    "blue_prompt": "blue-system@0.1.0",
+    "model_id": "hosted-model-x",
+    "model_date": "2026-11-01",
+    "contracts": "0.1.0"
+  },
+  "permitted_evidence_refs": [
+    {
+      "evidence_id": "ev-2026-11-10-encoded-ps-baseline",
+      "evidence_type": "reviewed_label",
+      "provenance_ref": "platform/evidence_store/ev-2026-11-10-encoded-ps-baseline"
+    }
+  ],
+  "limits": {
+    "max_attempts_per_step": 2,
+    "step_timeout_seconds": 300
+  }
+}

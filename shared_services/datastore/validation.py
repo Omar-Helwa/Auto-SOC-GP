@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from jsonschema import Draft202012Validator
 
-from .schema_registry import load_schema
+from .schema_registry import build_registry, load_schema
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ def validate(instance, contract: str) -> ValidationResult | None:
         return None
 
     errors: list[FieldError] = []
-    validator = Draft202012Validator(schema)
+    validator = Draft202012Validator(schema, registry=build_registry())
     for err in sorted(validator.iter_errors(instance), key=lambda e: list(e.path)):
         path = "/".join(str(p) for p in err.path) or "(root)"
         errors.append(FieldError(path=path, message=err.message, keyword=err.validator))

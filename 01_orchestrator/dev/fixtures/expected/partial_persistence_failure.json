@@ -1,0 +1,32 @@
+{
+  "scenario": "partial_persistence_failure",
+  "terminal_state": "completed",
+  "outcome": "pass",
+  "attempt_outcomes": {
+    "red_proposed": [
+      "succeeded"
+    ],
+    "telemetry_collected": [
+      "succeeded"
+    ],
+    "evidence_verified": [
+      "failed",
+      "succeeded"
+    ],
+    "blue_proposed": [
+      "succeeded"
+    ],
+    "candidate_executed": [
+      "succeeded"
+    ],
+    "judged": [
+      "succeeded"
+    ]
+  },
+  "required_storage": [
+    "round_record",
+    "audit_records",
+    "feedback_record",
+    "referenced_contract_artifacts"
+  ]
+}

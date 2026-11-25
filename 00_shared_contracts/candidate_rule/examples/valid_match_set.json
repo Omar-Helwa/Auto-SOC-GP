@@ -1,0 +1,29 @@
+{
+  "contract_version": "0.1.0",
+  "match_set_id": "ms-0001",
+  "task_id": "round-001",
+  "role": "candidate",
+  "detection_id": "det-susp-powershell",
+  "rule_version": "1.0.1-cand1",
+  "candidate_ref": "cand-rule-0001",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "evalset-01"
+  },
+  "execution": {
+    "execution_id": "exec-0002",
+    "status": "completed",
+    "events_scanned": 5000
+  },
+  "matches": [
+    {
+      "event_id": "evt-0007",
+      "index": "lab_eval"
+    },
+    {
+      "event_id": "evt-0042",
+      "index": "lab_eval"
+    }
+  ]
+}

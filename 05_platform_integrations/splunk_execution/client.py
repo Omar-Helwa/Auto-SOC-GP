@@ -83,12 +83,43 @@ class ApprovedSearchRequest:
     spl: str
     earliest_time: str = "-15m"
     latest_time: str = "now"
+    proposal_id: str | None = None
+    dataset: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
         for name in ("task_id", "task_version", "operation_id", "approval_id"):
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip() or len(value) > 256:
                 raise ValueError(f"{name} must be a non-empty string of at most 256 characters")
+        if self.proposal_id is not None and (
+            not isinstance(self.proposal_id, str)
+            or not self.proposal_id.strip()
+            or len(self.proposal_id) > 256
+        ):
+            raise ValueError("proposal_id must be a non-empty string of at most 256 characters")
+        if self.dataset is not None:
+            required_dataset_fields = {
+                "dataset_id",
+                "dataset_version",
+                "evaluation_set_id",
+            }
+            if not isinstance(self.dataset, Mapping):
+                raise ValueError("dataset must be an object")
+            if not required_dataset_fields.issubset(self.dataset):
+                raise ValueError("dataset must include dataset_id, dataset_version, and evaluation_set_id")
+            if set(self.dataset) - required_dataset_fields - {"evaluation_set_checksum"}:
+                raise ValueError("dataset contains unsupported fields")
+            if any(
+                not isinstance(self.dataset[field], str) or not self.dataset[field].strip()
+                for field in required_dataset_fields
+            ):
+                raise ValueError("dataset identifiers and versions must be non-empty strings")
+            checksum = self.dataset.get("evaluation_set_checksum")
+            if checksum is not None and (
+                not isinstance(checksum, str)
+                or not re.fullmatch(r"[A-Fa-f0-9]{64}", checksum)
+            ):
+                raise ValueError("evaluation_set_checksum must be a 64-character hexadecimal SHA-256")
         if not isinstance(self.spl, str) or not self.spl.strip():
             raise ValueError("spl must be a non-empty string")
         if len(self.spl) > 100_000:

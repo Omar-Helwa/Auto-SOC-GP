@@ -1,0 +1,25 @@
+{
+  "contract_version": "0.1.0",
+  "label_set_id": "ls-0002",
+  "label_set_version": "1",
+  "dataset": {
+    "dataset_id": "lab-sysmon",
+    "dataset_version": "2026.11.1",
+    "evaluation_set_id": "evalset-01"
+  },
+  "coverage": {
+    "total_events": 1,
+    "labelled_events": 1
+  },
+  "labels": [
+    {
+      "event_id": "evt-0007",
+      "label": "suspicious",
+      "source": "model_guess",
+      "review": {
+        "status": "reviewed"
+      }
+    }
+  ],
+  "_why_invalid": "missing coverage.complete, unknown label 'suspicious', and unknown source 'model_guess'."
+}

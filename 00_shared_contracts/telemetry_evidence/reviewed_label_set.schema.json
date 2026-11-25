@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/telemetry_evidence/reviewed_label_set/0.1.0",
+  "title": "ReviewedLabelSet",
+  "description": "Independently reviewed benign/attack labels for the events of one frozen evaluation set, with provenance. Ground truth for the deterministic judge. Model claims are never labels. Labels cover ALL events of the set (not only matched ones) so lost attack detections can be identified.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "label_set_id",
+    "label_set_version",
+    "dataset",
+    "coverage",
+    "labels"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "const": "0.1.0"
+    },
+    "label_set_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label_set_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset_id",
+        "dataset_version",
+        "evaluation_set_id"
+      ],
+      "properties": {
+        "dataset_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dataset_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evaluation_set_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Must equal the evaluation_set_id of the match sets."
+        },
+        "evaluation_set_checksum": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_events",
+        "complete"
+      ],
+      "properties": {
+        "total_events": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of events in the frozen evaluation set. Rules LS-2/LS-3 relate it to labels.length."
+        },
+        "complete": {
+          "type": "boolean",
+          "description": "True only if every event of the frozen set has a reviewed, non-disputed label. Enforced here: true requires every label's review.status to be 'reviewed'. Count equality is rule LS-2."
+        }
+      }
+    },
+    "labels": {
+      "type": "array",
+      "description": "One entry per labelled event. event_id uniqueness is rule LS-1 in validation_rules.json.",
+      "items": {
+        "$ref": "#/$defs/label"
+      }
+    }
+  },
+  "$defs": {
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "label",
+        "source",
+        "review"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Same identity space as match_set.matches[].event_id."
+        },
+        "label": {
+          "type": "string",
+          "enum": [
+            "benign",
+            "attack"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "lab_telemetry",
+            "public_dataset"
+          ]
+        },
+        "scenario_id": {
+          "type": "string",
+          "description": "Lab scenario or public dataset sample that produced the event."
+        },
+        "attack_technique": {
+          "type": "string",
+          "pattern": "^T\\d{4}(\\.\\d{3})?$",
+          "description": "Optional MITRE ATT&CK id for attack labels."
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "reviewed",
+                "disputed",
+                "unreviewed"
+              ]
+            },
+            "reviewer": {
+              "type": "string"
+            },
+            "reviewed_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "provenance_ref": {
+          "type": "string",
+          "description": "Reference to the immutable evidence record backing this label."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "complete": {
+                "const": true
+              }
+            },
+            "required": [
+              "complete"
+            ]
+          }
+        },
+        "required": [
+          "coverage"
+        ]
+      },
+      "then": {
+        "properties": {
+          "labels": {
+            "items": {
+              "properties": {
+                "review": {
+                  "properties": {
+                    "status": {
+                      "const": "reviewed"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
