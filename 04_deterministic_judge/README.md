@@ -37,15 +37,16 @@ The input is one JSON object:
 | Field | Contract | Purpose |
 |---|---|---|
 | `judge_input_id` | string | Identifies this evaluation |
-| `baseline` | `00_shared_contracts/candidate_rule/match_set.schema.json` (`role: baseline`) | Events matched by the original rule |
-| `candidate` | same schema (`role: candidate`, `candidate_ref` required) | Events matched by the candidate rule |
-| `reviewed_labels` | `00_shared_contracts/telemetry_evidence/reviewed_label_set.schema.json` | Reviewed labels for every event of the frozen set |
+| `task_id`, `detection_id` | strings | Identify the frozen round and detection |
+| `baseline_match_set` | `00_shared_contracts/candidate_rule/match_set.schema.json` (`role: baseline`) | Events matched by the original rule |
+| `candidate_match_set` | same schema (`role: candidate`, `candidate_ref` required) | Events matched by the candidate rule |
+| `reviewed_label_set` | `00_shared_contracts/telemetry_evidence/reviewed_label_set.schema.json` | Reviewed labels for the frozen evaluation set |
 | `criteria` | `minimum_attack_retention`, `maximum_new_benign_matches` | Fixed thresholds copied from the frozen round request |
+| `versions` | string-valued version map | Model, prompt, rule, dataset, evaluation-set, criteria, and contract versions |
 
-The Orchestrator carries criteria identity/version separately in `versions`;
-the Judge result records the exact applied thresholds in
-`provenance.criteria`. Task, detection, rule versions, dataset, and execution
-provenance are read from the artifacts themselves.
+The Judge result records the exact applied thresholds in `provenance.criteria`.
+Rule, dataset, and execution provenance are cross-checked against the nested
+match sets and reviewed labels.
 
 Each artifact is validated against its shared schema. Schemas are loaded from `00_shared_contracts/`
 by `$id`; override the folder with `AUTOSOC_CONTRACTS_DIR`. The judge then applies the rules in
@@ -230,8 +231,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-The implementation accepts an assembled JSON object with `judge_input_id`, `baseline`,
-`candidate`, `reviewed_labels`, and explicitly versioned `criteria` (see "What the Judge Receives").
+The implementation accepts an assembled JSON object conforming to the shared
+`judge_input` schema (see "What the Judge Receives").
 Run it directly with:
 
 ```powershell

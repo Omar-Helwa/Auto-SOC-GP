@@ -1,9 +1,11 @@
-"""Assembled round: REAL Red + REAL Blue, contract-valid Platform/Judge mocks -> MongoDB.
+"""Assembled round: REAL Red + REAL Blue + real Judge, mock Platform -> MongoDB.
 
-Red (02_red_role) and Blue (03_blue_role, package ``autosoc_blue``) are wired
-through their adapters. Platform and Judge outputs are smoke-test fixtures, not
-real Splunk measurements or an acceptance decision. Everything each service
-returns is validated and stored in MongoDB.
+Red (02_red_role), Blue (03_blue_role, package ``autosoc_blue``), and the
+deterministic Judge (04_deterministic_judge) are wired through adapters. Platform
+outputs are smoke-test fixtures, not real Splunk measurements. The fixture
+contains no baseline attack matches, so the real Judge returns INCONCLUSIVE
+rather than an acceptance decision. Everything each service returns is
+validated and stored in MongoDB.
 
     # from the repo root (a MongoDB must be reachable, see AUTOSOC_MONGO_URI):
     docker run -d --name autosoc-mongo -p 27017:27017 mongo:7
@@ -11,8 +13,7 @@ returns is validated and stored in MongoDB.
 
 Blue uses its deterministic proposer unless a provider is given (or
 AUTOSOC_MODEL_PROVIDER is set). The xAI provider uses XAI_API_KEY; the Groq
-provider uses GROQ_API_KEY or GROQ_KEY. Platform execution and judge
-are still mocks.
+provider uses GROQ_API_KEY or GROQ_KEY. Platform execution remains a mock.
 The database name defaults to ``autosoc_assembled`` (override with AUTOSOC_DB) so the
 shared ``autosoc`` database is not touched.
 """
@@ -25,23 +26,30 @@ import importlib.util
 import json
 import os
 import sys
+from importlib import import_module
 from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 os.environ.setdefault("AUTOSOC_DB", "autosoc_assembled")
 
-from shared_services.controller.round_controller import (  # noqa: E402
-    RoundController,
-    RoundStep,
-)
+ORCHESTRATOR_ROOT = REPO_ROOT / "01_orchestrator"
+if str(ORCHESTRATOR_ROOT) not in sys.path:
+    sys.path.append(str(ORCHESTRATOR_ROOT))
+
+from shared_services.controller.round_controller import RoundController  # noqa: E402
 from shared_services.controller.services import (  # noqa: E402
-    CallableService,
-    ServiceRegistry,
     ServiceResult,
+    WorkflowComponentAdapter,
 )
 from shared_services.datastore.repository import MongoRepository  # noqa: E402
+
+_workflow_models = import_module("workflow.models")
+BlueInputContext = _workflow_models.BlueInputContext
+WorkflowStepOutput = _workflow_models.WorkflowStepOutput
 
 
 CONTRACTS = REPO_ROOT / "00_shared_contracts"
@@ -61,6 +69,7 @@ def _build_mock_evidence(request: dict, red_proposal: dict) -> dict:
     events = []
     labels = []
     event_ids = []
+    benign_event_ids = []
     cases = [
         *((case, "benign") for case in fixture["false_positives"]),
         *((case, "attack") for case in fixture["must_detect"]),
@@ -88,6 +97,8 @@ def _build_mock_evidence(request: dict, red_proposal: dict) -> dict:
                 },
             }
         )
+        if label == "benign":
+            benign_event_ids.append(event_id)
 
     telemetry = {
         "contract_version": "0.1.0",
@@ -136,9 +147,10 @@ def _build_mock_evidence(request: dict, red_proposal: dict) -> dict:
         detection_id=request["detection"]["detection_id"],
         rule_version=request["detection"]["rule_version"],
         dataset=request["dataset"],
-        matches=[{"event_id": event_id, "index": "lab_eval"} for event_id in event_ids],
+        matches=[{"event_id": event_id, "index": "lab_eval"} for event_id in benign_event_ids],
     )
     baseline["execution"]["execution_id"] = f"baseline-execution-{task_id}"
+    baseline["execution"]["status"] = "completed"
     baseline.pop("candidate_ref", None)
     return {"telemetry": telemetry, "labels": label_set, "baseline": baseline}
 
@@ -151,6 +163,98 @@ def _load_adapter(name: str):
     return module
 
 
+class SmokeTestPlatform:
+    """Provide explicit, partial fixture evidence through the Platform interface."""
+
+    def __init__(self, blue_adapter):
+        self.blue_adapter = blue_adapter
+        self.evidence = {}
+
+    def collect_telemetry(self, round_request, _red_proposal):
+        task_id = round_request["task_id"]
+        return WorkflowStepOutput(
+            raw_output_ref=f"smoke://telemetry/{task_id}",
+            raw_output={
+                "task_id": task_id,
+                "source": "fixture",
+                "red_proposal_id": _red_proposal["proposal_id"],
+            },
+            detail="smoke-test fixture collection; not a Splunk execution",
+        )
+
+    def verify_evidence(self, round_request, red_proposal, telemetry_ref):
+        expected_ref = f"smoke://telemetry/{round_request['task_id']}"
+        if telemetry_ref != expected_ref:
+            raise ValueError(f"Unexpected smoke telemetry reference: {telemetry_ref!r}")
+        self.evidence = _build_mock_evidence(round_request, red_proposal)
+        return WorkflowStepOutput(
+            messages={
+                "telemetry_evidence": self.evidence["telemetry"],
+                "reviewed_label_set": self.evidence["labels"],
+                "baseline_match_set": self.evidence["baseline"],
+            },
+            raw_output={"telemetry_ref": telemetry_ref, "fixture_verified": True},
+            detail="contract-valid fixture evidence; baseline has no attack matches",
+        )
+
+    def build_blue_context(self, round_request, artifacts):
+        task_id = round_request["task_id"]
+        context = self.blue_adapter.blue_input_from_context(
+            {
+                "task_id": task_id,
+                "round_request": dict(round_request),
+                "results": {
+                    "platform_execute": ServiceResult(
+                        "telemetry_evidence", dict(artifacts["telemetry_evidence"])
+                    ),
+                    "platform_labels": ServiceResult(
+                        "reviewed_label_set", dict(artifacts["reviewed_label_set"])
+                    ),
+                    "platform_baseline": ServiceResult(
+                        "match_set", dict(artifacts["baseline_match_set"])
+                    ),
+                },
+            }
+        )
+        return BlueInputContext(
+            evidence_view={
+                "task_id": context["task_id"],
+                "detection_id": context["detection"]["detection_id"],
+                "false_positives": context["false_positives"],
+                "must_detect": context["must_detect"],
+            },
+            edit_constraints=context["edit_constraints"],
+            blue_detection=context["detection"],
+            prior_blue_edits=context.get("prior_blue_edits"),
+        )
+
+    def execute_candidate(self, round_request, blue_proposal, baseline_match_set):
+        if baseline_match_set is None:
+            raise ValueError("Smoke candidate execution requires the verified baseline set")
+        candidate = {}
+        candidate_rule = _compile_mock(
+            {
+                "task_id": round_request["task_id"],
+                "round_request": dict(round_request),
+                "blue_proposal": dict(blue_proposal),
+            },
+            candidate,
+            dict(round_request),
+        )
+        candidate["matches"]["matches"] = [dict(match) for match in baseline_match_set["matches"]]
+        return WorkflowStepOutput(
+            messages={
+                "candidate_rule": candidate_rule.payload,
+                "candidate_match_set": candidate["matches"],
+            },
+            raw_output={
+                "candidate_execution_id": candidate["matches"]["execution"]["execution_id"],
+                "measurement_status": "fixture",
+            },
+            detail="candidate fixture has no baseline attack matches; Judge must return INCONCLUSIVE",
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -159,20 +263,22 @@ def main(argv: list[str] | None = None) -> int:
         choices=("none", "mock", "xai", "grok", "groq"),
         help="Hosted provider: xai/grok requires XAI_API_KEY; groq requires GROQ_API_KEY or GROQ_KEY",
     )
-    parser.add_argument("--task-id", default="assembled-real-red-blue-0001")
+    parser.add_argument("--task-id", default=f"assembled-{uuid4().hex}")
     args = parser.parse_args(argv)
 
     red_service = _load_adapter("red_service")
     blue_service = _load_adapter("blue_service")
+    judge_service = _load_adapter("judge_service")
 
-    repo = MongoRepository(db_name=os.environ["AUTOSOC_DB"])
+    repo = MongoRepository(
+        db_name=os.environ["AUTOSOC_DB"], fallback_to_mock=False
+    )
+    if repo.backend != "mongodb":
+        raise RuntimeError("The assembled run requires a persistent MongoDB backend")
     repo.ping()
     repo.ensure_setup()
     task_id = args.task_id
 
-    registry = ServiceRegistry()
-    registry.register("red", red_service.build_red_service(provider=args.provider))  # REAL Red
-    registry.register("blue", blue_service.build_blue_service(provider=args.provider))  # REAL Blue
     round_request = _load_json(
         CONTRACTS / "round_request" / "examples" / "valid_round_request.json"
     )
@@ -190,77 +296,34 @@ def main(argv: list[str] | None = None) -> int:
         )
     else:
         round_request["versions"]["model_id"] = "mock-and-deterministic"
-    evidence = {}
-    candidate = {}
-    registry.register(
-        "platform_execute",
-        CallableService(
-            lambda payload: _execute_mock(payload, evidence)
+    services = SimpleNamespace(
+        red=WorkflowComponentAdapter(
+            red_service.build_red_service(provider=args.provider), "red_proposal"
+        ),
+        blue=WorkflowComponentAdapter(
+            blue_service.build_blue_service(provider=args.provider), "blue_proposal"
+        ),
+        platform=SmokeTestPlatform(blue_service),
+        judge=WorkflowComponentAdapter(
+            judge_service.build_judge_service(), "judge_result"
         ),
     )
-    registry.register(
-        "platform_labels",
-        CallableService(
-            lambda _payload: ServiceResult("reviewed_label_set", evidence["labels"])
-        ),
-    )
-    registry.register(
-        "platform_baseline",
-        CallableService(
-            lambda _payload: ServiceResult("match_set", evidence["baseline"])
-        ),
-    )
-    registry.register(
-        "platform_compile",
-        CallableService(
-            lambda payload: _compile_mock(payload, candidate, round_request)
-        ),
-    )
-    registry.register(
-        "platform_candidate_matches",
-        CallableService(
-            lambda _payload: ServiceResult("match_set", candidate["matches"])
-        ),
-    )
-    registry.register(
-        "judge",
-        CallableService(
-            lambda payload: ServiceResult(
-                "judge_result", _inconclusive_mock_judgment(payload["task_id"])
-            )
-        ),
-    )
-
-    steps = blue_service.blue_round_steps()
-    custom_builders = {
-        "platform_execute": lambda ctx: {
-            "task_id": ctx["task_id"],
-            "round_request": ctx["round_request"],
-            "red_proposal": ctx["results"]["red"].payload,
-        },
-        "platform_compile": lambda ctx: {
-            "task_id": ctx["task_id"],
-            "round_request": ctx["round_request"],
-            "blue_proposal": ctx["results"]["blue"].payload,
-        },
-    }
-    for index, step in enumerate(steps):
-        if step.role in custom_builders:
-            steps[index] = RoundStep(
-                step.role, custom_builders[step.role], step.label
-            )
-    controller = RoundController(repo, registry, steps=steps)
-    outcome = controller.run_round(round_request)
-    print(f"Round {outcome.task_id}: {outcome.outcome} ({outcome.reason or 'all steps ran'})")
-    for role, contract in outcome.stored.items():
-        print(f"  - {role:18} -> {contract}")
+    outcome = RoundController(repo, services).run_round(round_request)
+    record = outcome.record
+    print(f"Round {task_id}: {outcome.state}")
+    for artifact, reference in sorted(record.artifacts.items()):
+        print(f"  - {artifact:24} -> {reference}")
+    judge_rows = repo.find_by_task("judge_result", task_id)
+    if judge_rows:
+        print(f"Judge decision: {judge_rows[-1]['decision']['status']}")
     print(
-        "\nSMOKE TEST ONLY: Platform evidence, candidate execution, and the "
-        "INCONCLUSIVE judge response are fixtures; no Splunk measurement or "
-        "acceptance verdict was produced."
+        "\nSMOKE TEST ONLY: Platform evidence and candidate execution are "
+        "fixtures. The deterministic Judge ran, but there are no baseline "
+        "attack matches; this cannot produce an acceptance verdict or represent "
+        "measured Splunk results."
     )
 
-    exit_code = 0 if outcome.outcome == "completed" else 1
+    exit_code = 0 if outcome.state in {"completed", "inconclusive"} else 1
     red = repo.find_by_task("red_proposal", task_id)
     if red:
         print(f"\nReal red_proposal stored: {red[-1]['proposal_id']} ({red[-1]['scenario']['family']})")
@@ -273,11 +336,6 @@ def main(argv: list[str] | None = None) -> int:
         exit_code = 1
     repo.close()
     return exit_code
-
-
-def _execute_mock(payload: dict, evidence: dict) -> ServiceResult:
-    evidence.update(_build_mock_evidence(payload["round_request"], payload["red_proposal"]))
-    return ServiceResult("telemetry_evidence", evidence["telemetry"])
 
 
 def _compile_mock(payload: dict, candidate: dict, request: dict) -> ServiceResult:
@@ -311,50 +369,17 @@ def _compile_mock(payload: dict, candidate: dict, request: dict) -> ServiceResul
         dataset=request["dataset"],
     )
     matches["execution"]["execution_id"] = f"candidate-execution-{payload['task_id']}"
+    matches["execution"]["status"] = "completed"
     candidate["matches"] = matches
     return ServiceResult("candidate_rule", candidate_rule)
 
 
-def _inconclusive_mock_judgment(task_id: str) -> dict:
-    return {
-        "contract_version": "0.1.0",
-        "judge_input_id": f"mock-judge-{task_id}",
-        "task_id": task_id,
-        "decision": {
-            "status": "INCONCLUSIVE",
-            "reasons": ["Mock outputs are not measured execution evidence."],
-            "failed_gates": [],
-            "failures": [
-                {
-                    "code": "INPUT",
-                    "kind": "incomplete",
-                    "message": "Smoke-test fixtures cannot support an acceptance verdict.",
-                }
-            ],
-        },
-    }
-
-
 def _report_blue(proposal: dict) -> None:
-    """Show the stored proposal and re-check it against the reviewed events (read back from MongoDB)."""
-    from autosoc_blue.adapters.validators import LocalSigmaValidator
-    from autosoc_blue.rule_edits import apply_edits
-    from autosoc_blue.schemas.models import BlueInput, BlueProposal
-
-    blue_service = _load_adapter("blue_service")
-    blue_input = blue_service.blue_input_from_context({"task_id": proposal["task_id"], "round_request": {}})
-    inp = BlueInput.from_dict(blue_input)
-    cand = apply_edits(inp.detection.rule_text, BlueProposal.from_dict(proposal).edits)
-    v = LocalSigmaValidator()
+    """Show the exact Blue proposal stored by the workflow."""
     print(f"\nReal blue_proposal stored: {proposal['proposal_id']}")
     for e in proposal["edits"]:
         conds = " AND ".join(f"{c['field']} {c['modifier']} {c['values']}" for c in e["conditions"])
         print(f"  {e['operation']}: {conds}")
-    for fp in inp.false_positives:
-        print(f"  false positive {fp.evidence_id}: still matched = {v.matches(cand.rule_text, fp.observed_fields)}")
-    for m in inp.must_detect:
-        print(f"  must-detect    {m.evidence_id}: still matched = {v.matches(cand.rule_text, m.observed_fields)}")
-    print("\nCandidate rule diff:\n" + cand.diff)
 
 
 if __name__ == "__main__":

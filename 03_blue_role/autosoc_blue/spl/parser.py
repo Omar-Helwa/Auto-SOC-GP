@@ -21,11 +21,13 @@ from .errors import SplError, SplUnsupported
 
 SCOPE_FIELDS = ("index", "sourcetype", "source", "earliest", "latest")
 _IGNORED_TAIL = {"table", "fields"}
+_PRESERVED_PIPELINE = {"stats", "convert", "search"}
 _KNOWN_COMMANDS = {
     "eval": "eval computes new fields",
     "rex": "rex extracts fields with a regular expression",
     "regex": "regex filters with a regular expression",
     "stats": "stats aggregates events",
+    "convert": "convert formats fields",
     "lookup": "lookup enriches events from a lookup table",
     "where": "where evaluates expressions",
     "search": "a second search stage",
@@ -323,16 +325,20 @@ def _split_scope(root) -> tuple[dict[str, list[str]], object]:
     return scope, make_and(rest)
 
 
-def parse_spl(text: str) -> SplSearch:
+def parse_spl(text: str, *, allow_preserved_pipeline: bool = False) -> SplSearch:
     if not isinstance(text, str) or not text.strip():
         raise SplError("the search is empty", construct="empty")
     body, tails = _split_pipes(text.strip())
     notes: list[str] = []
+    preserved_commands: list[str] = []
     for seg in tails:
         words = seg.strip().split(None, 1)
         cmd = words[0].lower() if words else ""
         if cmd in _IGNORED_TAIL:
             notes.append(f"ignored trailing '| {seg.strip()}' (it only shapes the output)")
+            continue
+        if allow_preserved_pipeline and cmd in _PRESERVED_PIPELINE:
+            preserved_commands.append(cmd)
             continue
         if not cmd:
             raise SplError("an empty pipe segment ('| |' or a trailing '|')", construct="syntax")
@@ -341,6 +347,11 @@ def parse_spl(text: str) -> SplSearch:
             f"the pipe command '{cmd}' is not supported ({why}). Blue only reads a plain search; "
             "only a trailing '| table ...' or '| fields ...' is accepted (and ignored).",
             construct=f"| {cmd}")
+    if preserved_commands:
+        notes.append(
+            "preserved trusted pipeline commands "
+            f"({', '.join(preserved_commands)}); Blue edits only the initial search predicates"
+        )
     body = re.sub(r"^\s*search\s+", "", body, flags=re.IGNORECASE)
     first = body.split(None, 1)[0].lower() if body.strip() else ""
     if first in ("eval", "rex", "regex", "stats", "lookup", "where") and not re.match(r"\s*\w+\s*[=!]", body):

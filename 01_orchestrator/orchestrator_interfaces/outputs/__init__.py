@@ -1,4 +1,4 @@
-"""Outbound contract adapters."""
+"""Orchestrator outbound contract adapters."""
 
 from .adapter import ContractAlignmentError, IncompleteEvidenceError, OrchestratorOutputAdapter
 

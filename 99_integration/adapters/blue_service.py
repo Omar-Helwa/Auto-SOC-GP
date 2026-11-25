@@ -1,19 +1,11 @@
-"""Adapt the real Blue component to the controller's Service interface.
+"""Adapt the real Blue component to the Orchestrator workflow service interface.
 
-Same shape as ``red_service.py``: ``registry.register("blue", build_blue_service())``
-plugs the real Blue component (03_blue_role, package ``autosoc_blue``) into a round.
+``build_blue_service`` plugs the real Blue component (03_blue_role, package
+``autosoc_blue``) into the shared Orchestrator workflow.
 
-Two things live here because the controller cannot supply them yet:
-
-1. ``build_blue_service`` wraps ``BlueRole.run`` as a Service. Blue's output is a
-   ``blue_proposal``, or an ``error_response`` (the controller then stops the round).
-2. The default controller step for "blue" passes only ``{"task_id": ...}``, but Blue
-   needs a full ``blue_input`` (rule text, reviewed false positives and must-detect
-   events, edit constraints). ``blue_input_from_context`` builds it from the round
-   context. Until the platform evidence store exists, the reviewed events come from a
-   fixture (``03_blue_role/dev/fixtures/inputs``). ``blue_round_steps`` returns the
-   controller's default steps with only the blue step replaced, so no shared code
-   changes.
+``blue_input_from_context`` is retained as a development/evidence adapter. The
+Orchestrator owns the workflow order and invokes Blue only after its platform
+service has verified evidence.
 
 Packaging: ``autosoc_blue`` is a normal installable package (``pip install -e
 03_blue_role``). If it is not installed, this adapter appends ``03_blue_role`` to the END
@@ -29,7 +21,6 @@ import os
 import sys
 from pathlib import Path
 
-from shared_services.controller.round_controller import RoundStep, default_round_steps
 from shared_services.controller.services import CallableService, ServiceResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -85,18 +76,6 @@ def build_blue_service(
     blue = BlueRole(engine or build_engine(provider))
 
     def handle(payload: dict) -> ServiceResult:
-        integration_error = payload.get("_blue_integration_error")
-        if integration_error:
-            from autosoc_blue.schemas.serializer import build_error_response, error_to_contract
-
-            error = error_to_contract(
-                build_error_response(
-                    "dependency",
-                    str(integration_error),
-                    task_id=payload.get("task_id"),
-                )
-            )
-            return ServiceResult(contract="error_response", payload=error)
         result = blue.run(payload)
         contract = "blue_proposal" if "edits" in result else "error_response"
         return ServiceResult(contract=contract, payload=result)
@@ -236,26 +215,3 @@ def _apply_platform_evidence(blue_input: dict, round_request: dict, results: dic
         )
     blue_input["false_positives"] = false_positives
     blue_input["must_detect"] = must_detect
-
-
-def blue_round_steps(evidence_fixture: Path | str = DEFAULT_EVIDENCE_FIXTURE) -> list[RoundStep]:
-    """The controller's default steps, with the blue step building a real blue_input."""
-    steps = default_round_steps()
-    for i, step in enumerate(steps):
-        if step.role == "blue":
-            steps[i] = RoundStep(
-                "blue",
-                lambda ctx, _f=evidence_fixture: _blue_step_input(ctx, _f),
-                "Blue proposes a rule edit (real blue_input)",
-            )
-    return steps
-
-
-def _blue_step_input(ctx: dict, evidence_fixture: Path | str) -> dict:
-    try:
-        return blue_input_from_context(ctx, evidence_fixture)
-    except (KeyError, TypeError, ValueError) as exc:
-        return {
-            "_blue_integration_error": str(exc),
-            "task_id": ctx.get("task_id"),
-        }

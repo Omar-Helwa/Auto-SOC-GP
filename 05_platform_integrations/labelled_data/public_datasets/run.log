@@ -1,0 +1,79 @@
+﻿process_creation: 701 benign events -> C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\attacks\benign\socbed__process_creation\events.jsonl
+powershell: 30 benign events -> C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\attacks\benign\socbed__powershell\events.jsonl
+[T1003.001/atomic_red_team]
+  windows-sysmon_creddump.log: 65,428 bytes
+  procdump_windows-security.log: 14,595 bytes
+  crowdstrike_falcon.log: 77,504 bytes
+  createdump_windows-sysmon.log: 10,636 bytes
+  windows-sysmon.log: 14,235,927 bytes
+  -> C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\attacks\splunk_attack_data\T1003.001__atomic_red_team
+[T1053.005/atomic_red_team]
+  4698_windows-security.log: 46,373 bytes
+  4698_shell_windows-security.log: 9,685 bytes
+  windows-sysmon.log: 11,410,982 bytes
+  -> C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\attacks\splunk_attack_data\T1053.005__atomic_red_team
+[T1053.005/schtasks]
+  windows-sysmon.log: 626,881 bytes
+  -> C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\attacks\splunk_attack_data\T1053.005__schtasks
+[T1053.005/winevent_scheduled_task_created_to_spawn_shell]
+  windows-xml.log: 2,829 bytes
+  -> C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\attacks\splunk_attack_data\T1053.005__winevent_scheduled_task_created_to_spawn_shell
+already present: C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\original\rules\splunk_security_content (use --force to refresh)
+prepared 52 detections in C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\prepared\evalset-multi-v1\detections
+  Access LSASS Memory for Dump Creation
+  Create Remote Thread into LSASS
+  Creation of lsass Dump with Taskmgr
+  Delete ShadowCopy With PowerShell
+  Detect Credential Dumping through LSASS access
+  Detect Empire with PowerShell Script Block Logging
+  Detect Mimikatz With PowerShell Script Block Logging
+  Disabled Kerberos Pre-Authentication Discovery With PowerView
+  Dump LSASS via comsvcs DLL [needs CIM datamodel]
+  Dump LSASS via procdump [needs CIM datamodel]
+  Get ADUserResultantPasswordPolicy with Powershell Script Block
+  Get DomainPolicy with Powershell Script Block
+  Get-DomainTrust with PowerShell Script Block
+  GetAdComputer with PowerShell Script Block
+  GetDomainComputer with PowerShell Script Block
+  GetDomainController with PowerShell Script Block
+  GetDomainGroup with PowerShell Script Block
+  GetNetTcpconnection with PowerShell Script Block
+  GetWmiObject Ds Computer with PowerShell Script Block
+  GetWmiObject Ds Group with PowerShell Script Block
+  GetWmiObject DS User with PowerShell Script Block
+  GetWmiObject User Account with PowerShell Script Block
+  Mailsniper Invoke functions
+  Malicious PowerShell Process - Execution Policy Bypass [needs CIM datamodel]
+  PowerShell 4104 Hunting
+  Powershell Creating Thread Mutex
+  PowerShell Domain Enumeration
+  Powershell Enable SMB1Protocol Feature
+  Powershell Fileless Process Injection via GetProcAddress
+  Powershell Fileless Script Contains Base64 Encoded Content
+  Powershell Get LocalGroup Discovery with Script Block Logging
+  PowerShell Loading DotNET into Memory via Reflection
+  Powershell Processing Stream Of Data
+  Powershell Remove Windows Defender Directory
+  Recon Using WMI Class
+  Scheduled Task Deleted Or Created via CMD [needs CIM datamodel]
+  Schtasks scheduling job on remote system [needs CIM datamodel]
+  ServicePrincipalNames Discovery with PowerShell
+  Suspicious Scheduled Task from Public Directory [needs CIM datamodel]
+  Unloading AMSI via Reflection
+  Windows Credential Dumping LSASS Memory Createdump [needs CIM datamodel]
+  Windows Enable PowerShell Web Access
+  Windows Explorer.exe Spawning PowerShell or Cmd [needs CIM datamodel]
+  Windows Explorer LNK Exploit Process Launch With Padding [needs CIM datamodel]
+  Windows Hunting System Account Targeting Lsass
+  Windows Non-System Account Targeting Lsass
+  Windows Possible Credential Dumping
+  Windows PowerShell ScheduleTask
+  Windows Scheduled Task with Suspicious Command
+  WinEvent Scheduled Task Created to Spawn Shell
+  WinEvent Scheduled Task Created Within Public Path
+  WMI Recon Running Process Or Services
+attack=45222 benign=116 dup_skipped=1411
+written to C:\Users\Ahmed Fahmy\Downloads\Graduation project\Auto-SOC-GP\99_integration\datasets\prepared\evalset-multi-v1
+detections valid against round_request.detection: 52
+reviewed_label_set valid: 45338 labels
+detections with unresolved macros: 0 []

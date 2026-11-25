@@ -120,6 +120,32 @@ directory:
 python -m unittest discover -s dev -p "test_*.py"
 ```
 
+### Local connection check
+
+For the local MVP, `splunk_execution.config` reads `AUTOSOC_SPLUNK_URL`,
+`AUTOSOC_SPLUNK_USERNAME`, `AUTOSOC_SPLUNK_PASSWORD`, `AUTOSOC_SPLUNK_APP`,
+`AUTOSOC_SPLUNK_INDEX`, and optional `AUTOSOC_SPLUNK_SOURCETYPE` from the
+repository-root `.env` (process environment values take precedence). Use the
+Splunk management API URL, normally `https://localhost:8089`; port 8000 is the
+Splunk Web UI, not the search API. TLS verification remains enabled by default.
+Optional controls are `AUTOSOC_SPLUNK_VERIFY_TLS`,
+`AUTOSOC_SPLUNK_CA_CERT`, `AUTOSOC_SPLUNK_ALLOW_INSECURE_HTTP`,
+`AUTOSOC_SPLUNK_TIMEOUT_SECONDS`, and `AUTOSOC_SPLUNK_MAX_EVENTS`.
+
+Run this from `05_platform_integrations` in an interactive terminal:
+
+```powershell
+python -m splunk_execution.connection_check
+```
+
+The command constructs a search restricted to the configured literal index
+and optional sourcetype, defaults to the last 15 minutes, caps results at 10,
+and prompts for explicit approval of the exact SPL and time range. It reports
+only the event count and execution metadata, not telemetry contents. Use
+`--earliest-time` or `--latest-time` to adjust the diagnostic range. This
+operator prompt is a local MVP boundary; deployments should inject their
+trusted platform approval service in place of `ManualCLIApprovalAuthorizer`.
+
 ## Proposal execution (data-flow steps 3 and 5)
 
 `ProposalExecutionService` is the platform boundary consumed by the orchestrator;

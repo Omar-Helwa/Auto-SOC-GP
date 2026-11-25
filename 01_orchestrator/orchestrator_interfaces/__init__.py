@@ -1,4 +1,4 @@
-"""Public message adapters for the AutoSOC orchestrator."""
+"""Public contract adapters for the Orchestrator."""
 
 from .artifacts import (
     ArtifactNotFound,
@@ -7,8 +7,8 @@ from .artifacts import (
     InMemoryArtifactStore,
     MongoContractArtifactStore,
 )
-from .inputs.adapter import OrchestratorInputAdapter
-from .outputs.adapter import OrchestratorOutputAdapter
+from .inputs import OrchestratorInputAdapter
+from .outputs import OrchestratorOutputAdapter
 from .validation import ContractValidationError, InterfaceError, InterfaceValidator
 
 __all__ = [

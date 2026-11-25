@@ -1,17 +1,14 @@
-"""Adapt the real Red component to the controller's Service interface.
+"""Adapt the real Red component to the shared component-service boundary.
 
-The controller (shared_services) relays to anything implementing
-``handle(payload) -> ServiceResult``. This wraps ``RedRole`` from 02_red_role so
-``registry.register("red", build_red_service(gateway))`` plugs the real Red
-component into a round. Swap the injected gateway (mock now, Member 5's hosted
-model later) without touching the controller.
+This wraps ``RedRole`` from 02_red_role as a ``ServiceResult`` producer;
+``WorkflowComponentAdapter`` exposes its proposal through the Orchestrator's
+``red.run`` protocol. The workflow and caller do not depend on the Red model
+gateway implementation.
 
 Note on packaging: 02_red_role is not an importable package name (leading
-digit), so this adapter puts the component root on sys.path and imports its
-public entry (``interfaces.red_role``). When all five components are assembled,
-the team should give each a unique import root to avoid clashes between their
-identically named internal folders (schemas/, interfaces/, ...). Until then,
-import the real Red component through THIS adapter only.
+digit), so this adapter places its root first on sys.path to import its public
+entry point (``interfaces.red_role``). The Orchestrator uses the distinct
+``orchestrator_interfaces`` namespace to avoid shadowing Red's ``interfaces``.
 """
 
 from __future__ import annotations

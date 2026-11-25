@@ -332,6 +332,69 @@ class ProposalExecutionTests(unittest.TestCase):
                 candidate_rule_version="3.2.1",
             )
 
+    def test_imported_detection_exclusion_preserves_approved_pipeline(self) -> None:
+        proposal = self.blue_proposal()
+        proposal["detection_under_test"] = {
+            "detection_id": "67d4dbef-9564-4699-8da8-03a151529edc",
+            "rule_version": "15",
+        }
+        proposal["edits"] = [
+            {
+                "operation": "add_exclusion",
+                "conditions": [
+                    {"field": "User", "modifier": "equals", "values": ["CORP\\svc_inventory"]}
+                ],
+                "reason": "Exclude the reviewed service-account pattern.",
+            }
+        ]
+        base_rule = BaseRule(
+            task_id=proposal["task_id"],
+            detection_id="67d4dbef-9564-4699-8da8-03a151529edc",
+            rule_version="15",
+            spl_template=(
+                '(source="WinEventLog:Sysmon" OR source="XmlWinEventLog:Sysmon") '
+                'EventID=8 TargetImage="*\\\\lsass.exe"\n'
+                "| stats count by TargetImage\n"
+                '| convert timeformat="%Y-%m-%dT%H:%M:%S" ctime(firstTime)\n'
+                "| search *"
+            ),
+            selections={},
+        )
+
+        candidate = compile_candidate_rule(
+            proposal, base_rule, candidate_rule_version="15-candidate-1"
+        )
+        compiled = candidate["compiled_rule"]["text"]
+        head, stats, convert, final_search = compiled.split(" | ")
+
+        self.assertIn("NOT (User=", head)
+        self.assertEqual(stats, "stats count by TargetImage")
+        self.assertEqual(
+            convert,
+            'convert timeformat="%Y-%m-%dT%H:%M:%S" ctime(firstTime)',
+        )
+        self.assertEqual(final_search, "search *")
+        self.assertNotIn("\n", compiled)
+
+    def test_pipeline_commands_are_limited_to_the_approved_imported_rule(self) -> None:
+        with self.assertRaisesRegex(ValueError, "approved imported rule"):
+            BaseRule(
+                task_id="task-1",
+                detection_id="another-rule",
+                rule_version="1",
+                spl_template="search index=lab_eval | stats count",
+                selections={},
+            )
+
+        with self.assertRaisesRegex(ValueError, "not approved"):
+            BaseRule(
+                task_id="task-1",
+                detection_id="67d4dbef-9564-4699-8da8-03a151529edc",
+                rule_version="15",
+                spl_template="search index=lab_eval | outputlookup results",
+                selections={},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

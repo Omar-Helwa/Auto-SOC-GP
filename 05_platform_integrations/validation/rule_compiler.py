@@ -15,6 +15,86 @@ from .proposals import require_valid_contract
 _SELECTION_PLACEHOLDER = re.compile(r"\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}")
 _SELECTION_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _FIELD_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+_PRESERVED_PIPELINE_RULE = (
+    "67d4dbef-9564-4699-8da8-03a151529edc",
+    "15",
+)
+_PRESERVED_PIPELINE_COMMANDS = {"stats", "convert", "search"}
+
+
+def _split_spl_pipeline(spl: str) -> tuple[str, list[str]]:
+    segments: list[str] = []
+    current: list[str] = []
+    in_quote = False
+    index = 0
+    while index < len(spl):
+        char = spl[index]
+        if in_quote and char == "\\" and index + 1 < len(spl):
+            current.extend((char, spl[index + 1]))
+            index += 2
+            continue
+        if char == '"':
+            in_quote = not in_quote
+            current.append(char)
+        elif char == "|" and not in_quote:
+            segments.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    if in_quote:
+        raise ValueError("base SPL contains an unterminated quoted value")
+    segments.append("".join(current))
+    head = segments[0].strip()
+    pipeline = [segment.strip() for segment in segments[1:]]
+    if not head or any(not segment for segment in pipeline):
+        raise ValueError("base SPL contains an empty search or pipeline segment")
+    return head, pipeline
+
+
+def _normalize_spl_whitespace(spl: str) -> str:
+    output: list[str] = []
+    in_quote = False
+    escaped = False
+    pending_space = False
+    for char in spl:
+        if in_quote:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_quote = False
+        elif char == '"':
+            if pending_space and output:
+                output.append(" ")
+            pending_space = False
+            in_quote = True
+            output.append(char)
+        elif char.isspace():
+            pending_space = bool(output)
+        else:
+            if pending_space and output:
+                output.append(" ")
+            pending_space = False
+            output.append(char)
+    return "".join(output).strip()
+
+
+def _validate_preserved_pipeline(
+    detection_id: str, rule_version: str, pipeline: list[str]
+) -> None:
+    if not pipeline:
+        return
+    if (detection_id, rule_version) != _PRESERVED_PIPELINE_RULE:
+        raise ValueError(
+            "preserved SPL pipelines are only supported for the approved imported rule"
+        )
+    for segment in pipeline:
+        command = segment.split(None, 1)[0].lower()
+        if command not in _PRESERVED_PIPELINE_COMMANDS:
+            raise ValueError(f"pipeline command {command!r} is not approved")
 
 
 @dataclass(frozen=True)
@@ -22,7 +102,8 @@ class BaseRule:
     """Trusted, read-only base SPL with optional named selection fragments.
 
     ``spl_template`` may reference a selection as ``{{selection_name}}``.
-    Model-proposed edits can only change those fragments or add a filter.
+    Model-proposed edits can only change those fragments or add a filter. One
+    imported rule may retain its approved, read-only stats/convert/search tail.
     """
 
     task_id: str
@@ -40,8 +121,14 @@ class BaseRule:
             raise ValueError("spl_template must be a non-empty string")
         if len(self.spl_template) > 20_000:
             raise ValueError("spl_template exceeds the 20000 character limit")
-        if any(char in self.spl_template for char in ("|", ";", "`", "\n", "\r")):
-            raise ValueError("base SPL must be a read-only search expression")
+        if any(char in self.spl_template for char in (";", "`", "[", "]")):
+            raise ValueError("base SPL contains an unsupported construct")
+        if any(ord(char) < 32 and not char.isspace() for char in self.spl_template):
+            raise ValueError("base SPL contains a control character")
+        _, pipeline = _split_spl_pipeline(self.spl_template)
+        _validate_preserved_pipeline(
+            self.detection_id, self.rule_version, pipeline
+        )
         if not isinstance(self.selections, Mapping):
             raise ValueError("selections must be a mapping")
         for name, expression in self.selections.items():
@@ -99,7 +186,16 @@ def compile_candidate_rule(
         lambda match: selections[match.group(1)], base_rule.spl_template
     ).strip()
     if exclusions:
-        compiled = f"({compiled}) NOT ({') NOT ('.join(exclusions)})"
+        head, pipeline = _split_spl_pipeline(compiled)
+        if pipeline:
+            body = re.sub(r"^\s*search\s+", "", head, count=1, flags=re.IGNORECASE)
+            if not body.strip():
+                raise ValueError("base SPL search head has no detection conditions")
+            compiled = f"search ({body}) NOT ({') NOT ('.join(exclusions)})"
+            compiled += "".join(f" | {segment}" for segment in pipeline)
+        else:
+            compiled = f"({compiled}) NOT ({') NOT ('.join(exclusions)})"
+    compiled = _normalize_spl_whitespace(compiled)
     if len(compiled) > 20_000:
         raise ValueError("compiled SPL exceeds the 20000 character limit")
 

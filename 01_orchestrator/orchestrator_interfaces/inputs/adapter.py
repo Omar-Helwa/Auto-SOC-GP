@@ -1,4 +1,4 @@
-"""Accept round requests and component outputs through the public boundary."""
+"""Accept round requests and component outputs through the Orchestrator boundary."""
 
 from __future__ import annotations
 

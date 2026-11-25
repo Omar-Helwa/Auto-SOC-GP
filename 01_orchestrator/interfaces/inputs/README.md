@@ -8,7 +8,7 @@ application can also use the adapter directly for a controlled integration.
 ## API and round lifecycle
 
 ```python
-from interfaces.inputs import OrchestratorInputAdapter
+from orchestrator_interfaces.inputs import OrchestratorInputAdapter
 
 incoming = OrchestratorInputAdapter(manager, artifacts)
 record = incoming.open_round(round_request)

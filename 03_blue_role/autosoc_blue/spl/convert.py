@@ -96,9 +96,17 @@ class _Builder:
         return word.join(parts), kind
 
 
-def spl_to_sigma_rule(spl: str, *, title: str = "SPL search", rule_id: str | None = None) -> tuple[dict, list[str]]:
+def spl_to_sigma_rule(
+    spl: str,
+    *,
+    title: str = "SPL search",
+    rule_id: str | None = None,
+    allow_preserved_pipeline: bool = False,
+) -> tuple[dict, list[str]]:
     """Parse a Splunk search and return (Sigma rule dict, notes)."""
-    search: SplSearch = parse_spl(spl)
+    search: SplSearch = parse_spl(
+        spl, allow_preserved_pipeline=allow_preserved_pipeline
+    )
     builder = _Builder()
     condition, _ = builder.build(search.node, False)
     detection = dict(builder.detection)

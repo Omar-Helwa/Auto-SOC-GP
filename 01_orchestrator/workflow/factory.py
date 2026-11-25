@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from interfaces.artifacts import MongoContractArtifactStore
-from interfaces.inputs import OrchestratorInputAdapter
-from interfaces.outputs import OrchestratorOutputAdapter
-from interfaces.validation import InterfaceValidator
+from orchestrator_interfaces.artifacts import MongoContractArtifactStore
+from orchestrator_interfaces.inputs import OrchestratorInputAdapter
+from orchestrator_interfaces.outputs import OrchestratorOutputAdapter
+from orchestrator_interfaces.validation import InterfaceValidator
 from round_management import MongoRoundStore, RoundManager
 from audit_records import AuditRecordWriter, MongoAuditRecordStore
 

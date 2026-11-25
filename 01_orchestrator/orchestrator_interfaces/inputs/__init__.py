@@ -1,4 +1,4 @@
-"""Inbound contract adapters."""
+"""Orchestrator inbound contract adapters."""
 
 from .adapter import ComponentFailure, OrchestratorInputAdapter
 

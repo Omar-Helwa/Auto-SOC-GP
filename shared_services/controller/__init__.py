@@ -1,21 +1,19 @@
-"""Controller: relays round data between services, persisting via the datastore."""
+"""Public shared-services entry point for round execution."""
 
 from .services import (  # noqa: F401
     CallableService,
     Service,
-    ServiceRegistry,
     ServiceResult,
-    static_service,
+    ServiceAdapterError,
+    WorkflowComponentAdapter,
 )
-from .round_controller import RoundController, RoundStep, default_round_steps  # noqa: F401
+from .round_controller import RoundController  # noqa: F401
 
 __all__ = [
     "Service",
     "ServiceResult",
-    "ServiceRegistry",
     "CallableService",
-    "static_service",
+    "ServiceAdapterError",
+    "WorkflowComponentAdapter",
     "RoundController",
-    "RoundStep",
-    "default_round_steps",
 ]

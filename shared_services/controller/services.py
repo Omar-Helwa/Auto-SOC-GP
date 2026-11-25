@@ -1,71 +1,83 @@
-"""Service abstraction the controller relays to.
-
-Each service (red, platform, blue, judge, ...) is anything with a
-``handle(payload) -> ServiceResult`` method. A ``ServiceResult`` says which
-contract the returned payload conforms to, so the controller knows which
-collection to store it in and whether it is a normal output or an
-``error_response``. Real components and mocks implement the same interface, so
-the controller does not change when a mock is swapped for a real service.
-"""
+"""Adapters for component clients consumed by the Orchestrator workflow."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Protocol, runtime_checkable
+from typing import Any, Callable, Mapping, Protocol, runtime_checkable
 
 
-@dataclass
+@dataclass(frozen=True)
 class ServiceResult:
-    contract: str   # e.g. "red_proposal" or "error_response"
-    payload: dict
+    """A component adapter response tagged with its shared contract name."""
+
+    contract: str
+    payload: dict[str, Any]
 
 
 @runtime_checkable
 class Service(Protocol):
-    def handle(self, payload: dict) -> ServiceResult: ...
+    def handle(self, payload: dict[str, Any]) -> ServiceResult: ...
 
 
-class ServiceRegistry:
-    """Maps a role name (e.g. 'red') to the Service that fulfils it."""
+class ServiceAdapterError(RuntimeError):
+    """A service-boundary response the Orchestrator cannot accept."""
 
-    def __init__(self) -> None:
-        self._services: dict[str, Service] = {}
-
-    def register(self, role: str, service: Service) -> None:
-        self._services[role] = service
-
-    def get(self, role: str) -> Service:
-        if role not in self._services:
-            raise KeyError(f"No service registered for role {role!r}")
-        return self._services[role]
-
-    def has(self, role: str) -> bool:
-        return role in self._services
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "internal",
+        retryable: bool = False,
+        details: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.retryable = retryable
+        self.details = dict(details or {})
 
 
 class CallableService:
-    """Adapt a plain function ``fn(payload) -> ServiceResult`` into a Service."""
+    """Adapt a function returning ``ServiceResult`` to the component boundary."""
 
-    def __init__(self, fn: Callable[[dict], ServiceResult]) -> None:
+    def __init__(self, fn: Callable[[dict[str, Any]], ServiceResult]) -> None:
         self._fn = fn
 
-    def handle(self, payload: dict) -> ServiceResult:
+    def handle(self, payload: dict[str, Any]) -> ServiceResult:
         return self._fn(payload)
 
 
-def static_service(contract: str, payload_or_factory) -> CallableService:
-    """Build a mock Service that returns a fixed payload (or a factory result).
+class WorkflowComponentAdapter:
+    """Translate a contract-tagged component client into the workflow ``run`` API."""
 
-    ``payload_or_factory`` may be a dict (returned as-is) or a callable taking
-    the incoming payload and returning a dict (so it can thread task_id etc.).
-    Useful for standing in for a real service that is not wired yet.
-    """
+    def __init__(self, service: Service, expected_contract: str) -> None:
+        self._service = service
+        self._expected_contract = expected_contract
 
-    def fn(payload: dict) -> ServiceResult:
-        if callable(payload_or_factory):
-            out = payload_or_factory(payload)
-        else:
-            out = dict(payload_or_factory)
-        return ServiceResult(contract=contract, payload=out)
-
-    return CallableService(fn)
+    def run(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        result = self._service.handle(dict(payload))
+        if not isinstance(result, ServiceResult):
+            raise ServiceAdapterError("Component adapter did not return ServiceResult")
+        if result.contract == "error_response":
+            error = result.payload
+            category = error.get("category")
+            if category not in {
+                "validation",
+                "missing_information",
+                "dependency",
+                "timeout",
+                "internal",
+            }:
+                category = "internal"
+            raise ServiceAdapterError(
+                str(error.get("message") or "Component returned error_response"),
+                category=category,
+                retryable=error.get("retryable") is True,
+                details=error,
+            )
+        if result.contract != self._expected_contract:
+            raise ServiceAdapterError(
+                f"Expected {self._expected_contract!r}, received {result.contract!r}",
+                category="validation",
+                details={"expected_contract": self._expected_contract, "actual_contract": result.contract},
+            )
+        return result.payload

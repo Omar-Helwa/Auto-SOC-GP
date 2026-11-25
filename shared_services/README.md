@@ -1,86 +1,82 @@
-# `shared_services/` - datastore + controller (team infrastructure)
+# `shared_services/` - shared persistence and controller facade
 
-MongoDB persistence for shared contract messages and auxiliary round/audit
-records, plus a controller that relays round data in Architecture 1 order.
-Validation uses the published shared schemas.
-Owned by the team; coordinate changes with the Orchestrator (M1) and Platform (M5).
+Cross-component MongoDB persistence for shared contracts, round state, audit
+records, and feedback. `RoundController` is the Mongo-backed application entry
+point and delegates the full lifecycle to `01_orchestrator/workflow`. This
+package does not define a second step list, retry policy, or decision path.
 
 ## Layout
 
-```
+```text
 shared_services/
-  config.py                 # Mongo URI + DB name (env-overridable) + collection map
+  config.py                 # Mongo URI, database name, and collection map
   datastore/
-    schema_registry.py      # maps each contract -> its JSON Schema file
-    validation.py           # app-layer validation against those schemas
-    repository.py           # MongoRepository: one collection per contract
+    schema_registry.py      # contract -> shared JSON Schema
+    validation.py           # app-layer schema validation
+    repository.py           # MongoRepository
   controller/
-    services.py             # Service interface + registry + mock helpers
-    round_controller.py     # runs a round, persisting every message
+    services.py             # component client boundary adapters
+    round_controller.py     # public facade over the Orchestrator workflow
   scripts/
-    init_db.py              # create collections + indexes (idempotent)
-    demo_round.py           # run one mock round end-to-end
-  tests/                    # pytest suite (skips if Mongo is down)
+    init_db.py              # create collections and indexes
+    demo_round.py           # mock round; Judge is INCONCLUSIVE
+  tests/                    # facade, adapter, and datastore tests
 ```
 
-## The "DB schema"
+## Persistence
 
-One collection per stored contract message (see `config.CONTRACT_COLLECTIONS`):
+Contract messages are stored in their contract collections. Validation is
+app-layer: a message is checked against its shared schema before insertion.
+Auxiliary round and audit records are written by the Orchestrator's Mongo
+storage adapters. Audit records currently have no published shared schema.
 
-| Contract | Collection | Validated on write? |
-|----------|-----------|---------------------|
-| round_request | `round_requests` | ✅ yes |
-| red_proposal | `red_proposals` | ✅ yes |
-| telemetry_evidence | `telemetry_evidence` | yes |
-| reviewed_label_set | `reviewed_label_sets` | yes |
-| blue_proposal | `blue_proposals` | ✅ yes |
-| candidate_rule | `candidate_rules` | ✅ yes (draft) |
-| match_set | `match_sets` | yes |
-| judge_result | `judge_results` | yes |
-| feedback_record | `feedback_records` | yes |
-| error_response | `error_responses` | ✅ yes |
-| red_input (aux) | `red_inputs` | ✅ yes |
-| audit_record (aux) | `audit_records` | no: Orchestrator audit document |
-| round_record (aux) | `rounds` | no: orchestrator state, written by `MongoRoundStore` |
+| Contract | Collection |
+|---|---|
+| `round_request` | `round_requests` |
+| `red_proposal` | `red_proposals` |
+| `telemetry_evidence` | `telemetry_evidence` |
+| `reviewed_label_set` | `reviewed_label_sets` |
+| `blue_proposal` | `blue_proposals` |
+| `candidate_rule` | `candidate_rules` |
+| `match_set` | `match_sets` |
+| `judge_result` | `judge_results` |
+| `feedback_record` | `feedback_records` |
+| `error_response` | `error_responses` |
+| Orchestrator state | `rounds` |
+| Orchestrator audit | `audit_records` |
 
-Validation is **app-layer**: a document is checked against its contract's schema
-before insert (`ContractViolation` is raised on failure). Contracts without a
-published schema are stored unvalidated with a warning. The init script reports
-temporary schema fallbacks separately.
+## Setup and run
 
-## Setup & run
-
-```bash
-pip install -r shared_services/requirements.txt
-
-# Provision the database structure from .env (or use the mock fallback)
+```powershell
+python -m pip install -r shared_services/requirements.txt
 python -m shared_services.scripts.init_db
-
-# Run one mock round into MongoDB
 python -m shared_services.scripts.demo_round
-
-# Tests (unique throwaway DB; mock fallback if local Mongo is down)
 python -m pytest shared_services/tests
 ```
 
-The repository-root `.env` supplies `MONGODB_URI` (a MongoDB connection URI).
-`AUTOSOC_MONGO_URI` overrides it, and `AUTOSOC_DB` selects the database name.
-If the initial MongoDB connection cannot be established, the repository logs a
-warning and falls back to process-local `mongomock`; this data is temporary and
-is not synchronized to Atlas. Authentication or malformed-URI errors are
-surfaced instead of being hidden by the fallback. Set
-`fallback_to_mock=False` when constructing `MongoRepository` to require MongoDB.
+The repository-root `.env` supplies `MONGODB_URI`; `AUTOSOC_MONGO_URI`
+overrides it, and `AUTOSOC_DB` selects the database. If the initial MongoDB
+connection cannot be established, the repository logs a warning and falls
+back to process-local `mongomock`. This data is temporary and is not
+synchronized to Atlas. Authentication or malformed-URI errors are surfaced.
+Set `fallback_to_mock=False` to require MongoDB.
 
 Tests use a local endpoint by default so they never clean up data in the
-application Atlas cluster. Set `AUTOSOC_TEST_MONGO_URI` to an isolated test
-cluster only when you want to run the Mongo integration tests there.
+application Atlas cluster. Set `AUTOSOC_TEST_MONGO_URI` only for an isolated
+test cluster.
 
-## Wiring real services
+## Wiring component clients
 
-The controller relays to anything implementing `Service.handle(payload) ->
-ServiceResult`. Replace a mock with a real component by registering it under the
-same role — the controller is unchanged:
+`RoundController` accepts the Orchestrator's `WorkflowServices` shape
+(`red.run`, `blue.run`, `judge.run`, and Platform operations). Existing
+component adapters that return `ServiceResult` can be wrapped with
+`WorkflowComponentAdapter`:
 
 ```python
-registry.register("red", MyRealRedService())      # instead of static_service(...)
+services.red = WorkflowComponentAdapter(red_client, "red_proposal")
+controller = RoundController(repository, services)
+result = controller.run_round(round_request)
 ```
+
+Application composition belongs in `99_integration/`; workflow ordering and
+state policy remain in `01_orchestrator/`.

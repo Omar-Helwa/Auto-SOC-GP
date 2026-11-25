@@ -19,7 +19,7 @@
       "additionalProperties": false,
       "required": [ "minimum_attack_retention", "maximum_new_benign_matches" ],
       "properties": {
-        "minimum_attack_retention": { "type": "number", "minimum": 0},
+        "minimum_attack_retention": { "type": "number", "minimum": 0, "maximum": 1},
         "maximum_new_benign_matches": { "type": "integer", "minimum": 0 }
       }
     },

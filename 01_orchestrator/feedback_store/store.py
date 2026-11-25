@@ -7,8 +7,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
-from interfaces.artifacts import ContractArtifactStore
-from interfaces.validation import InterfaceValidator
+from orchestrator_interfaces.artifacts import ContractArtifactStore
+from orchestrator_interfaces.validation import InterfaceValidator
 
 
 class FeedbackStoreError(RuntimeError):

@@ -197,7 +197,7 @@
       "properties": {
         "code": {
           "type": "string",
-          "description": "Rule id from validation_rules.json (MS-1, LS-1, LS-2, LS-3, X-1, X-2, X-4, X-5, X-6) or a judge code (SCHEMA, INPUT, CRITERIA).",
+          "description": "Rule id from validation_rules.json (MS-1, LS-1, LS-2, LS-3, X-1, X-2, X-4, X-5, X-6, X-7) or a judge code (SCHEMA, INPUT, CRITERIA).",
           "pattern": "^(SCHEMA|INPUT|CRITERIA|MS-\\d+|LS-\\d+|X-\\d+)$"
         },
         "kind": { "type": "string", "enum": ["invalid", "incomplete"] },

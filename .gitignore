@@ -10,9 +10,13 @@ __pycache__/
 .venv/
 venv/
 
+/05_platform_integrations/labelled_data/original
 # Local dev scratch
 **/dev/temp_outputs/*
 !**/dev/temp_outputs/.gitkeep
 
 # Personal planning notes (not shared)
 02_red_role/TASKS.md
+05_platform_integrations/labelled_data/public_datasets/original
+05_platform_integrations/labelled_data/public_datasets/prepared
+

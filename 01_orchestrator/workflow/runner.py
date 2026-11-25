@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
 from audit_records import AuditRecordWriter, InMemoryAuditRecordStore
-from interfaces.inputs.adapter import ComponentFailure
+from orchestrator_interfaces.inputs.adapter import ComponentFailure
 from round_management.errors import make_error_response
 from round_management.states import RoundState, is_terminal
 

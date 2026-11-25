@@ -130,6 +130,38 @@ def test_trailing_table_and_fields_are_ignored():
     assert rule["detection"]["condition"] == "sel_a" and len(notes) == 2
 
 
+def test_approved_imported_pipeline_is_preserved_only_when_requested():
+    spl = 'EventID=8 TargetImage="*\\\\lsass.exe" | stats count by TargetImage | search *'
+    with pytest.raises(SplUnsupported, match="stats"):
+        spl_to_sigma_rule(spl)
+
+    rule, notes = spl_to_sigma_rule(spl, allow_preserved_pipeline=True)
+
+    assert rule["detection"]["condition"] == "sel_eventid and sel_targetimage"
+    assert len(notes) == 1
+    assert "stats, search" in notes[0]
+    assert "only the initial search predicates" in notes[0]
+
+
+def test_context_pipeline_support_is_limited_to_the_selected_imported_rule(
+    fixture_input,
+):
+    from autosoc_blue.core.context import build_context
+
+    data = fixture_input("spl_single_fp")
+    data["detection"].update(
+        detection_id="67d4dbef-9564-4699-8da8-03a151529edc",
+        rule_version="15",
+        rule_text='EventID=8 TargetImage="*\\\\lsass.exe" | stats count by TargetImage',
+    )
+    context = build_context(BlueInput.from_dict(data))
+    assert any("preserved trusted pipeline" in note for note in context.notes)
+
+    data["detection"]["detection_id"] = "another-imported-rule"
+    with pytest.raises(SplUnsupported, match="stats"):
+        build_context(BlueInput.from_dict(data))
+
+
 def test_leading_search_keyword_is_accepted():
     assert det('search A="x"')["sel_a"] == {"A": "x"}
 

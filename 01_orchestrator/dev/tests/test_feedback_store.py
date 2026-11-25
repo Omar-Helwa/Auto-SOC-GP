@@ -10,8 +10,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from feedback_store import FeedbackStore
-from interfaces import InMemoryArtifactStore, InterfaceValidator, MongoContractArtifactStore
-from interfaces.outputs import OrchestratorOutputAdapter
+from orchestrator_interfaces import InMemoryArtifactStore, InterfaceValidator, MongoContractArtifactStore
+from orchestrator_interfaces.outputs import OrchestratorOutputAdapter
 from round_management import InMemoryRoundStore, RoundManager, RoundState
 from workflow import create_workflow
 from bson import ObjectId

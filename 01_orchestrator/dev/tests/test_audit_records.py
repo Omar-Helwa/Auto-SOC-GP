@@ -15,9 +15,9 @@ from audit_records import (
     InMemoryAuditRecordStore,
     MongoAuditRecordStore,
 )
-from interfaces import InMemoryArtifactStore
-from interfaces.inputs import OrchestratorInputAdapter
-from interfaces.outputs import OrchestratorOutputAdapter
+from orchestrator_interfaces import InMemoryArtifactStore
+from orchestrator_interfaces.inputs import OrchestratorInputAdapter
+from orchestrator_interfaces.outputs import OrchestratorOutputAdapter
 from round_management import InMemoryRoundStore, RoundManager
 from workflow import RoundWorkflow, WorkflowServiceError, WorkflowStepOutput
 

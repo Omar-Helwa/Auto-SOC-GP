@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from interfaces.artifacts import ArtifactPersistenceError
+from orchestrator_interfaces.artifacts import ArtifactPersistenceError
 
 
 class FailOnceArtifactStore:

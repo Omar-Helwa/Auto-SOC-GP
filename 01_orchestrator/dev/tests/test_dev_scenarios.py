@@ -13,7 +13,7 @@ REPO_ROOT = ORCHESTRATOR_ROOT.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from dev.mocks import FailOnceArtifactStore, MockWorkflowServices  # noqa: E402
-from interfaces import InMemoryArtifactStore, InterfaceValidator  # noqa: E402
+from orchestrator_interfaces import InMemoryArtifactStore, InterfaceValidator  # noqa: E402
 from round_management import InMemoryRoundStore  # noqa: E402
 from workflow import WorkflowBlockedError, create_workflow  # noqa: E402
 

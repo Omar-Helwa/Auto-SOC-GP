@@ -1,4 +1,4 @@
-"""Contract-message persistence adapters used by the public interfaces."""
+"""Contract-message persistence adapters for the Orchestrator boundary."""
 
 from __future__ import annotations
 

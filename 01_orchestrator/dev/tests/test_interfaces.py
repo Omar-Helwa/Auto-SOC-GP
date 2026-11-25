@@ -7,10 +7,10 @@ import json
 import unittest
 from pathlib import Path
 
-from interfaces import ArtifactPersistenceError, InMemoryArtifactStore
-from interfaces.inputs.adapter import ComponentFailure, OrchestratorInputAdapter
-from interfaces.outputs.adapter import ContractAlignmentError, OrchestratorOutputAdapter
-from interfaces.outputs.cross_contract import validate_judge_evidence
+from orchestrator_interfaces import ArtifactPersistenceError, InMemoryArtifactStore
+from orchestrator_interfaces.inputs.adapter import ComponentFailure, OrchestratorInputAdapter
+from orchestrator_interfaces.outputs.adapter import ContractAlignmentError, OrchestratorOutputAdapter
+from orchestrator_interfaces.outputs.cross_contract import validate_judge_evidence
 from round_management import InMemoryRoundStore, RoundManager, RoundState
 
 
@@ -131,7 +131,7 @@ class OutputAdapterTests(unittest.TestCase):
         self.assertEqual(message["prompt_version"], req["versions"]["red_prompt"])
         self.assertNotIn("rule_text", message["detection"])
 
-    def test_blue_input_fails_closed_on_current_spl_sigma_contract_conflict(self):
+    def test_blue_input_accepts_an_explicit_version_matched_spl_representation(self):
         manager, artifacts, inputs, outputs = manager_and_adapters()
         req = request()
         round_id = req["task_id"]
@@ -143,8 +143,21 @@ class OutputAdapterTests(unittest.TestCase):
             "must_detect": [{"evidence_reference": {"evidence_id": "atk-1", "evidence_type": "reviewed_label"}, "observed_fields": {"Image": "powershell.exe"}}],
         }
 
-        with self.assertRaises(ContractAlignmentError):
-            outputs.build_blue_input(round_id, evidence_view, {"allowed_operations": ["add_exclusion"], "allowed_fields": ["User"], "max_edits": 1})
+        blue_input = outputs.build_blue_input(
+            round_id,
+            evidence_view,
+            {"allowed_operations": ["add_exclusion"], "allowed_fields": ["User"], "max_edits": 1},
+            blue_detection={
+                "detection_id": req["detection"]["detection_id"],
+                "rule_version": req["detection"]["rule_version"],
+                "rule_format": "spl",
+                "rule_text": req["detection"]["rule_text"],
+                "logic_summary": req["detection"]["logic_summary"],
+            },
+        )
+
+        self.assertEqual(blue_input["detection"]["rule_format"], "spl")
+        self.assertEqual(blue_input["detection"]["rule_text"], req["detection"]["rule_text"])
 
 
 class CrossContractTests(unittest.TestCase):
@@ -186,4 +199,52 @@ class TemporarySchemaTests(unittest.TestCase):
                 schema = load_json(path)
                 self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
                 self.assertTrue(schema["$id"].startswith("autosoc://orchestrator/interfaces/"))
+
+
+class SharedJudgeInputContractTests(unittest.TestCase):
+    def test_judge_input_uses_the_published_shared_contract(self):
+        from orchestrator_interfaces.validation import ContractValidationError, InterfaceValidator
+
+        req = request()
+        task_id = req["task_id"]
+        baseline = load_json(CONTRACTS / "candidate_rule/examples/valid_match_set.json")
+        baseline.update(
+            match_set_id="judge-baseline",
+            task_id=task_id,
+            role="baseline",
+            detection_id=req["detection"]["detection_id"],
+            rule_version=req["detection"]["rule_version"],
+            dataset=req["dataset"],
+        )
+        baseline.pop("candidate_ref", None)
+        candidate = load_json(CONTRACTS / "candidate_rule/examples/valid_match_set.json")
+        candidate.update(
+            match_set_id="judge-candidate",
+            task_id=task_id,
+            role="candidate",
+            detection_id=req["detection"]["detection_id"],
+            rule_version="candidate-v1",
+            candidate_ref="candidate-1",
+            dataset=req["dataset"],
+        )
+        labels = load_json(CONTRACTS / "telemetry_evidence/examples/valid_reviewed_label_set.json")
+        payload = {
+            "contract_version": "0.1.0",
+            "judge_input_id": f"judge-input-{task_id}",
+            "task_id": task_id,
+            "detection_id": req["detection"]["detection_id"],
+            "baseline_match_set": baseline,
+            "candidate_match_set": candidate,
+            "reviewed_label_set": labels,
+            "criteria": req["criteria"]["thresholds"],
+            "versions": req["versions"],
+        }
+        validator = InterfaceValidator(repo_root=ROOT.parent)
+
+        accepted = validator.validate("judge_input", payload)
+        self.assertEqual(accepted["judge_input_id"], f"judge-input-{task_id}")
+
+        payload.pop("judge_input_id")
+        with self.assertRaises(ContractValidationError):
+            validator.validate("judge_input", payload)
 

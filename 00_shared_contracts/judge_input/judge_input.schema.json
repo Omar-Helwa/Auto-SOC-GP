@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "autosoc://contracts/judge_input/0.1.0",
+  "title": "JudgeInput",
+  "description": "Complete, frozen evidence bundle for one deterministic evaluation. Nested match sets and reviewed labels retain their shared-contract shapes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "judge_input_id",
+    "task_id",
+    "detection_id",
+    "baseline_match_set",
+    "candidate_match_set",
+    "reviewed_label_set",
+    "criteria",
+    "versions"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "judge_input_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "detection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "baseline_match_set": {
+      "$ref": "autosoc://contracts/candidate_rule/match_set/0.1.0"
+    },
+    "candidate_match_set": {
+      "$ref": "autosoc://contracts/candidate_rule/match_set/0.1.0"
+    },
+    "reviewed_label_set": {
+      "$ref": "autosoc://contracts/telemetry_evidence/reviewed_label_set/0.1.0"
+    },
+    "criteria": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_attack_retention",
+        "maximum_new_benign_matches"
+      ],
+      "properties": {
+        "minimum_attack_retention": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maximum_new_benign_matches": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

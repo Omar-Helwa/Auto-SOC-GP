@@ -1,4 +1,4 @@
-"""Build and persist outbound messages at the orchestrator boundary."""
+"""Build and persist outbound messages at the Orchestrator boundary."""
 
 from __future__ import annotations
 
@@ -66,9 +66,8 @@ class OrchestratorOutputAdapter:
         """Assemble Blue's role input from verified cases and a trusted rule view.
 
         `blue_detection` must come from an approved rule representation
-        adapter. The current round_request uses SPL while Blue's published
-        input schema requires Sigma, so this method fails closed when no
-        compatible representation is supplied.
+        adapter. The representation must be explicitly Sigma or Splunk SPL,
+        and its detection identity/version must match the frozen request.
         """
         record = self.manager.get_round(round_id)
         config = record.config
@@ -88,10 +87,10 @@ class OrchestratorOutputAdapter:
         source_rule = blue_detection
         if source_rule is None:
             source_rule = config.detection
-        if source_rule.get("rule_format") != "sigma":
+        if source_rule.get("rule_format") not in {"sigma", "spl"}:
             raise ContractAlignmentError(
-                "Blue input requires Sigma, but round_request currently carries rule_language='splunk_spl'. "
-                "Provide an approved, version-matched Blue rule representation adapter; no implicit conversion is allowed."
+                "Blue input requires an explicitly supported rule_format ('sigma' or 'spl'). "
+                "Provide an approved, version-matched rule representation; no implicit conversion is allowed."
             )
         if source_rule.get("detection_id") != config.detection["detection_id"] or source_rule.get("rule_version") != config.detection["rule_version"]:
             raise InvalidCrossContract("Blue rule representation does not match the frozen detection identity/version")
@@ -140,13 +139,12 @@ class OrchestratorOutputAdapter:
         labels = self._load("reviewed_label_set", refs["reviewed_label_set"])
         validate_judge_evidence(record.config, blue, candidate_rule, baseline, candidate, labels)
 
-        # The bundle's nested evaluation artifacts remain the original shared
-        # contract messages. Only the outer temporary envelope names their
-        # roles; do not flatten or rename their contract fields for a
-        # component-specific validator.
+        # Preserve the shared match-set and reviewed-label contracts verbatim
+        # inside the published JudgeInput bundle.
         frozen_request = record.config.to_dict()
         message = {
             "contract_version": "0.1.0",
+            "judge_input_id": f"judge-input-{round_id}",
             "task_id": round_id,
             "detection_id": record.config.detection["detection_id"],
             "baseline_match_set": baseline,

@@ -1,4 +1,4 @@
-"""Schema validation at the orchestrator's public contract boundary."""
+"""Schema validation at the Orchestrator's public contract boundary."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ _SCHEMA_NAMES = {
     "reviewed_label_set": ("00_shared_contracts/telemetry_evidence/reviewed_label_set.schema.json",),
     "match_set": ("00_shared_contracts/candidate_rule/match_set.schema.json",),
     "candidate_rule": ("00_shared_contracts/candidate_rule/candidate_rule.schema.json",),
-    "judge_input": ("01_orchestrator/interfaces/contracts/judge_input.schema.json",),
+    "judge_input": ("00_shared_contracts/judge_input/judge_input.schema.json",),
     "judge_result": ("00_shared_contracts/judge_result/judge_result.schema.json",),
     "feedback_record": ("00_shared_contracts/feedback_record/feedback_record.schema.json",),
     "error_response": ("00_shared_contracts/error_response/error_response.schema.json",),

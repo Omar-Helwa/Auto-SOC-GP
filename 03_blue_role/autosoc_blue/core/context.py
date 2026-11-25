@@ -9,6 +9,10 @@ from ..ports import EvidenceSource
 from ..rule_edits.apply import parse_rule
 from ..schemas.models import BlueInput, ObservedCase
 
+_PRESERVED_PIPELINE_RULES = {
+    ("67d4dbef-9564-4699-8da8-03a151529edc", "15"),
+}
+
 
 @dataclass
 class BlueContext:
@@ -60,8 +64,16 @@ def build_context(inp: BlueInput, evidence: EvidenceSource | None = None) -> Blu
         from ..rule_edits.apply import dump_rule
         from ..spl import spl_to_sigma_rule
 
+        rule_identity = (
+            inp.detection.detection_id,
+            inp.detection.rule_version,
+        )
         rule, spl_notes = spl_to_sigma_rule(
-            inp.detection.rule_text, title=inp.detection.detection_id, rule_id=inp.detection.detection_id)
+            inp.detection.rule_text,
+            title=inp.detection.detection_id,
+            rule_id=inp.detection.detection_id,
+            allow_preserved_pipeline=rule_identity in _PRESERVED_PIPELINE_RULES,
+        )
         notes.extend(spl_notes)
         sigma_text = dump_rule(rule)
         rule = parse_rule(sigma_text)

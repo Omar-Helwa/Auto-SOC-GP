@@ -123,6 +123,21 @@ def _rule_failures(judge_input: Mapping[str, Any]):
     if not_reviewed:
         failures.append(_failure("X-6", INCOMPLETE, f"labels not in 'reviewed' status: {not_reviewed}"))
 
+    # X-7: attack retention is undefined if the baseline detected no attacks.
+    label_by_id = {item["event_id"]: item for item in labels["labels"]}
+    baseline_attack_matches = {
+        match["event_id"]
+        for match in baseline["matches"]
+        if match["event_id"] in label_by_id
+        and label_by_id[match["event_id"]]["label"] == "attack"
+    }
+    if not baseline_attack_matches:
+        failures.append(_failure(
+            "X-7",
+            INCOMPLETE,
+            "baseline has no labelled attack matches; attack retention cannot be measured",
+        ))
+
     return failures
 
 # ---- shared contract schemas

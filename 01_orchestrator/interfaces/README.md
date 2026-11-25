@@ -1,62 +1,60 @@
 # Orchestrator interfaces
 
-The interface adapters connect contract messages and artifact storage to
-`RoundManager`. They validate inputs and outputs, persist contract documents,
-and attach stored references to the corresponding round transition. The
-adapters do not call components themselves; `workflow.RoundWorkflow` invokes
-the injected services and routes their outputs through these adapters.
+This folder contains boundary documentation and the one Orchestrator-local
+telemetry schema. The Python adapters that validate inputs and outputs, persist
+contract documents, and attach references to `RoundManager` live in
+[`../orchestrator_interfaces/`](../orchestrator_interfaces/).
 
 ## Modules
 
-- [`validation.py`](validation.py): schema discovery and strict JSON contract
-  validation. Published shared/component schemas take precedence over the
-  local temporary schemas.
-- [`artifacts.py`](artifacts.py): contract-artifact storage protocol,
-  in-memory implementation, Mongo repository adapter, and retry-safe
-  `save_once` helper.
-- [`inputs/adapter.py`](inputs/adapter.py): opens a round, begins attempts,
-  validates and persists returned artifacts or `error_response` messages, and
-  advances or closes the round.
-- [`outputs/adapter.py`](outputs/adapter.py): builds Red, Blue, and Judge
-  inputs; checks evidence before judging; and saves feedback before closing a
-  judged round.
-- [`outputs/cross_contract.py`](outputs/cross_contract.py): checks that the
-  stored proposals, candidate rule, match sets, labels, and frozen round refer
-  to compatible tasks, detections, versions, datasets, and executions.
+- [`../orchestrator_interfaces/validation.py`](../orchestrator_interfaces/validation.py):
+  strict JSON validation using shared and
+  component schemas.
+- [`../orchestrator_interfaces/artifacts.py`](../orchestrator_interfaces/artifacts.py):
+  artifact-store protocol, in-memory and Mongo
+  implementations, and retry-safe `save_once`.
+- [`../orchestrator_interfaces/inputs/adapter.py`](../orchestrator_interfaces/inputs/adapter.py):
+  opens rounds, manages attempts,
+  validates/persists artifacts and errors, and advances state.
+- [`../orchestrator_interfaces/outputs/adapter.py`](../orchestrator_interfaces/outputs/adapter.py):
+  builds Red, Blue, and Judge
+  inputs; validates evidence before judging; and saves feedback.
+- [`../orchestrator_interfaces/outputs/cross_contract.py`](../orchestrator_interfaces/outputs/cross_contract.py):
+  checks that
+  proposals, rules, match sets, labels, and frozen requests agree on task,
+  detection, versions, datasets, and executions.
 
 ## Storage and lifecycle
 
-The round record stores references, not copies of component contract
-messages. Both adapters must share the same `RoundManager` and artifact store.
-Use `create_mongo_workflow()` for Mongo-backed rounds, artifacts, and audit;
-the separate adapters are also available for tests and controlled integration.
+Round records store references rather than copies of component messages. Both
+adapters must share the same `RoundManager` and artifact store.
+`create_mongo_workflow()` wires Mongo-backed round, artifact, and audit stores.
+Artifacts written before a later write or state transition fails may remain
+unreferenced; retries reuse identical artifacts, but multi-document writes are
+not transactional.
 
-An artifact written before a later write or round transition fails can remain
-in storage without a round reference. `save_once` reuses identical task
-artifacts on retry, but there is no cleanup job or transaction covering
-multiple artifact writes and a round update.
+## Contract status
 
-## Contract status and known gaps
+Published shared/component schemas are authoritative for requests, proposals,
+Blue/Judge inputs and outputs, labels, match sets, candidate rules, feedback,
+and errors. The full `telemetry_evidence` envelope still uses an Orchestrator
+local schema because the shared telemetry folder currently publishes the
+evidence-reference and reviewed-label contracts only.
 
-Published contracts are used for `round_request`, `red_input`, proposals,
-reviewed labels, match sets, candidate rules, `judge_result`,
-`feedback_record`, and `error_response`. Two local schemas remain temporary:
-the full `telemetry_evidence` envelope and the outer `judge_input` handoff.
-Their status is in [`contracts/README.md`](contracts/README.md).
+Blue input accepts explicit `sigma` and `spl` formats. The Platform's trusted
+rule-view adapter supplies the rule text and must preserve the frozen
+detection ID and rule version. The Orchestrator does not convert or relabel
+rule text. Edit constraints are supplied by the Platform service.
 
-The Judge result is schema-validated and its task ID is checked when present.
-For PASS/REJECT, the Orchestrator also checks the criteria version. It does
-not yet compare every result provenance field against the stored source
-artifacts. An INCONCLUSIVE Judge result with a null task ID is valid for an
-unreadable input in the Judge-result schema, but must not be associated with a
-round feedback record; that semantic case still needs explicit handling.
+The Judge input uses the shared `judge_input` schema. The Judge result is
+validated against the shared `judge_result` schema and cross-checked against
+the stored evidence. Provenance matching can be expanded further; see
+[`outputs/README.md`](outputs/README.md).
 
-Blue's published input requires Sigma, but the frozen request carries Splunk
-SPL. The builder fails closed unless the caller supplies an approved,
-identity/version-matched Sigma representation. Edit constraints are caller
-supplied and do not currently have a frozen policy version in `round_request`.
-The Orchestrator does not convert SPL or create a policy on its own.
+Use the `orchestrator_interfaces` Python package in code. The physical
+`interfaces/` folder is retained for schemas and documentation; it is not an
+import package, so it cannot shadow Red's `interfaces` package.
 
 Install [`requirements.txt`](../requirements.txt) for schema validation and
-Mongo support. Run the Orchestrator suite from `01_orchestrator` with
+Mongo support. Run tests from `01_orchestrator` with
 `python -m unittest discover -s dev/tests -v`.
